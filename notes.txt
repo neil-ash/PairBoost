@@ -1,0 +1,636 @@
+Algorithm idea for male vs female multiple objective gradient boosting:
+- Compute gradient (derivate using dsquareloss()) for both male dataset and female datasets independently
+- Pass gradients into find_pareto_descent() to get descent direction (psuedo-residuals)
+- Build tree to predict psuedo-residuals
+
+Concerns:
+- What does the LIBSVM encoding mean?
+- Is the dataset the same as the UCI dataset?
+    - No: many fewer features in the LIBSVM dataset
+- Code takes a very long time to run (>5 minutes) on UCI preprocessed data
+    - Large number of features and data points
+    - LIBSVM dataset has many fewer features and data points
+
+------------------------------------ CURRENTLY -------------------------------------------------------
+#  In original XGBoost code's python package, core.py
+pred = self.predict(dtrain)
+grad, hess = fobj(pred, dtrain)
+self.boost(dtrain, grad, hess)
+
+------------------------------------ DESIRED ---------------------------------------------------------
+# dtrain1 is training data with first set of labels (first objective)
+pred1 = self.predict(dtrain1)
+grad1, hess1 = fobj(pred1, dtrain1)
+
+# dtrain2 is training data with second set of labels (second objective)
+pred2 = self.predict(dtrain2)
+grad2, hess2 = fobj(pred2, dtrain2)
+
+# Apply pareto to gradients (first deriv    ative of objective function)
+grad_mat = np.hstack((grad1.reshape(-1, 1), grad2.reshape(-1, 1)))
+grad_pareto = find_pareto_descent(grad_mat)
+
+# Apply pareto to hessians (second derivative of objective function)
+hess_mat = np.hstack((hess2.reshape(-1, 1), hess2.reshape(-1, 1)))
+hess_pareto = find_pareto_descent(hess_mat)
+
+# What will the original dtrain look like?
+# Would the original dtrain dataset include each label (in this case, label1 and label2)?
+# How would this be passed into the fit() function? As a 2D y array?
+self.boost(dtrain, grad_pareto, hess_pareto)
+
+------------------------------------ NOTES -----------------------------------------------------------
+- Make 2 global DMatrices, dtrain1 and dtrain2
+    dtrain = xgb.DMatrix(x_train, label=y_train)
+- Use the above 'DESIRED' code
+- This way, won't have to worry about making sure arguments line up since the dtrain arguments in
+  update(self, dtrain, iteration, fobj=None) will not be used
+- To test, call fit(X, y) with bogus y (all 1s or something)
+
+- STILL NEED TO FIX MODEL INITIALIZATION??
+    - What are the model's initial predictions?
+        - Does this matter?
+    - Where are initial predictions set?
+        - Potentially: change y argument passed into fit() method to mock up the average prediction
+
+------------------------------------------------------------------------------------------------------
+Having difficulty with PyCharm. Instead, could make changes directly to pip-installed xgboost package
+using atom:
+
+Location of pip-installed xgboost package:
+    /Users/Ashtekar15/anaconda3/lib/python3.6/site-packages/xgboost
+
+------------------------------------------------------------------------------------------------------
+Instead of making changes to pip-installed xgboost, make changes inside venv
+    (Use shift+command+g to search)
+    /Users/Ashtekar15/anaconda3/envs/ModXGBoost/lib/python3.7/site-packages/xgboost
+
+To run test script (in /Users/Ashtekar15/Desktop/Thesis):
+    conda activate ModXGBoost
+    python xgb_test.py
+
+------------------------------------------------------------------------------------------------------
+
+In sklearn.py, class XGBModel(XGBModelBase):
+   Note
+   ----
+   A custom objective function can be provided for the ``objective``
+   parameter. In this case, it should have the signature
+   ``objective(y_true, y_pred) -> grad, hess``:
+
+------------------------------------------------------------------------------------------------------
+Model is currently working for adult dataset, to do next:
+- Clean up code
+    - Put most code in core.py/sklearn.py, not in the xgb_test.py script
+        - Move the fobj function to one of these files (?)
+            - Put fobj() in sklearn.py, as __init__() argument for
+              class XGBModel(XGBModelBase)
+        - May need to modify a different file
+
+        DONE
+
+    - Inlcude a loop to iterate over all objectives (dtrain1, dtrain2, etc.)
+        - Also use a loop to create DMatrix for each set of labels (all with
+          the same features)
+        - Move this code into a function (method of Booster (?)) in core.py
+         rather than sitting out
+
+         DONE
+
+- Look at demos (xgboost/demo in original repo)
+    - Test on Higgs dataset
+    - Confirm that labels passed into fit() do not matter
+- Set up version control
+    - New repo (?)
+    - Folder within existing repo (?)
+
+So far, have modified files:
+    core.py
+    sklearn.py
+
+------------------------------------------------------------------------------------------------------
+Model currently working on both adult and higgs datasets
+
+To do:
+- Confirm that Higgs is a regression problem
+  ANSWER: Ultimately a multiclass classification problem, however, the
+          included prediction script takes in continuous predictions and
+          thresholds them in order to make categorical predictions.
+
+- Try to match 3.6 score on Kaggle
+    - Use train/test split, don't submit predictions (?)
+    - Run with MSE objective function, 120 trees
+      ANSWER: Results are close (3.41 vs 3.6 MG vs XG) but not equal. Attribute
+              difference to "objective='binary:logitraw'" in original XG code
+
+- Compare results of traditional XGBoost to MGBoost on a simple regression
+  problem (ex: linear regression)
+  ANSWER: Results exactly the same
+
+- Clarify questions to ask
+
+------------------------------------------------------------------------------------------------------
+New gituhb repo:
+- xgboost/
+- other/
+    - test_scripts/
+    - test_data/
+- notes.txt
+- README.md
+
+------------------------------------------------------------------------------------------------------
+To do before 11-4 meeting:
+- Read (skim) thru Microsoft paper
+- Create updated github repo
+    - Share with Mehrdad
+- Make changes to __init__ of MGBoost (from xgboost source code)
+
+------------------------------------------------------------------------------------------------------
+To do 11-17:
+- Write function for creating features from input data
+    - Make function usable with Microsoft bing dataset
+- Test performance of various parameter configs
+- Email function script, jupyter notebook with analysis
+    - Remind Mehrdad to approve thesis in email
+    - Mention questions/ideas regarding feature generation
+    - Ask about meeting this coming week
+- Re-read Chris Burges lambda ranking paper
+- Think about research questions
+    - Why does the inclusion of the A - B feature help?
+    - Adding idea of lambda to xgboost ranking:
+        - By modifying xgboost algorithm -- straightforward? How to?
+        - Without modifying xgboost algorithm -- how?
+
+Microsoft learning-to-rank datasets:
+https://www.microsoft.com/en-us/research/project/mslr/
+
+Concerns:
+- Features will be too big to fit in memory (8GB RAM in laptop)
+- Don't know which column in sample.tsv corresponds to score
+- (?)
+
+------------------------------------------------------------------------------------------------------
+To do 11-19:
+- Write function
+- Do experiments
+- Skim thru Chris Burges paper
+- Think about features/performance
+- Email Mehrdad results
+    - MENTION THESIS APPROVAL
+
+------------------------------------------------------------------------------------------------------
+To do 11-21:
+- Look at unbiased lambdamart code
+- Skim thru Chris Burges paper
+- Think about features/performance
+- Review your summary
+
+------------------------------------------------------------------------------------------------------
+Notes 1-8:
+- Can easily load train/val/test split data from Yahoo LETOR dataset using functions in unbiased
+  lambdamart
+
+  Data explanation: https://github.com/QingyaoAi/Unbiased-Learning-to-Rank-with-Unbiased-Propensity-Estimation
+  Script to load data: https://github.com/QingyaoAi/Unbiased-Learning-to-Rank-with-Unbiased-Propensity-Estimation/blob/master/Unbiased_LTR/data_utils.py
+
+- Generated features are still much too large to fit in memory (100+ GB)
+- Options:
+    - Train/test split with MSFT dataset
+        - Compare delta_features=True vs delta_features=False
+            - Report results
+    - Rewrite feature generation functions for Yahoo data
+        - Make cleaner than MSFT scripts
+    - Fix MGBoost to only load data once
+        - Modify __init__
+    - Email Mehrdad
+        - Mention problem/using cluster
+        - Send paper https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/suml10_submission_20.pdf
+        - Ask to focus on MGBoost wrt KDD
+            - Mention fixing MGBoost
+        - Ask about third project
+    - Review theory
+        - Chris Burges LTR paper
+        - MGBoost problem formulation
+        - Read nature paper
+
+------------------------------------------------------------------------------------------------------
+Notes 1-9:
+- First test: delta_features leads to worsened performance
+- Moving forward:
+    - Run more times with different random seeds
+        - At least 5 (?) more times
+        - RESULTS: 3/5 delta_features is worse, 2/5 better (not significant)
+    - Modify XGBoost hyperparameters
+        - Maybe current model is too complex
+            - Fewer trees
+            - Shallower max depth
+    - Think of explanation
+        - Curse of dimensionality
+        - Model complexity
+            - Overfitting with more features
+        - Too little data relative to number of features
+    - Try using ONLY delta_features as features
+
+------------------------------------------------------------------------------------------------------
+Notes 1-10:
+- Run MSFT experiments on Yahoo dataset
+- Use train/valid sets only (?)
+    - No need to manually train/test split
+    - Don't touch test set yet (?)
+- Still need to randomly sample queries in train/test sets
+    - First figure out how many max queries (memory concern)
+
+LEFT OFF:
+- Yahoo_Data_Processing.ipynb
+- Still need to write build_model() functionality
+- Need to load test data
+    - Should be very similar to train
+    - Make sure to del after loading
+        - del training data when testing (?)
+
+------------------------------------------------------------------------------------------------------
+Notes 1-14:
+- Save generated arrays (from ENTIRE train/val set)
+- Generate features for train/val sets individually
+    - Save features as .npy (?)
+        - Include seeds in filenames
+        - Do this for all seeds/tests up front (?)
+    - OR, don't save features since quick to generate features and already saved
+      entire arrays
+- Build and test model
+    - Pass in saved train/val features
+    - Test with 5 queries (67/33 train/test split)
+
+------------------------------------------------------------------------------------------------------
+Notes 1-16:
+- Send Mehrdad numpy features as well
+- INCLUDE RANK METRICS SCRIPT
+
+------------------------------------------------------------------------------------------------------
+Notes/Meeting 1-17:
+- DeltaMART: plan? Still potential?
+    - Check results/choose to proceed after running on cluster?
+
+    Could test lambdamart on the subset of queries to do fair comparison
+    LightGBM/examples/lambdarank/
+
+- Focus on MGBoost (?)
+    - Potential synthesized dataset/dataset made from existing data
+    - Ideas for contexts where MGBoost would make sense:
+        - Ranking (content score, freshness score, unbiasedness score)
+        - Fairness across gender (ex: adult dataset)
+            - Extend MGBoost to work here?
+
+            Only need gradients, does not matter if multiple labels for the same
+            data point
+
+            Email on Monday if not done with both
+
+        - Predict if bank should give someone a loan (predict income, credit
+          history, etc. and use predicted MGBoost score as threshold)
+
+          Ranking with multiple objectives:
+          http://www.cs.toronto.edu/~mvolkovs/www2011_lambdarank.pdf
+
+- What is the third project (?)
+- Other potential projects (?)
+    - Last year: non-convex optimization, escaping saddle points, DL
+      optimization landscape
+    - Interested in reinforcement learning, genetic algorithms projects
+- Mention staying next year, still interested in research then
+
+------------------------------------------------------------------------------------------------------
+Notes/Meeting 1-20:
+- Proceed with DeltaMART? Test on cluster?
+
+    Send LambdaMART test code to Mehrdad
+
+- Still interested in MGBoost
+- Also interested in other projects:
+    - Deep learning
+        - Last year: non-convex optimization, escaping saddle points, DL
+          optimization landscape
+    - Reinforcement learning
+    - Genetic algorithms
+    - Theory
+
+    Other idea related to ranking: look at paper Mehrdad sent, implement later
+    ("Classification with Pairwise Information", Pareto learning to combine)
+
+    Potential next project: federated learning (?)
+
+    Meet to discuss other projects later, first finish current project (either
+    MGBoost, DeltaMART, or combining rankers)
+
+------------------------------------------------------------------------------------------------------
+Notes 1-29:
+
+New Projects
+- Read 'Classification with Pairwise Information'
+- Read/compare with 'Toward Pareto Efficient Multiple Objective Ranking'
+    - Section 'A Pareto efficient learning to combine algorithm'
+
+DeltaMART
+- Write code to test pointwise approach LTR
+    - To compare against lambdamart, DeltaMART
+
+MGBoost
+- Create and test on synthesized dataset
+    features | label 1 | 2 * label 1 | 3 * label 1
+    - Add noise to features
+
+------------------------------------------------------------------------------------------------------
+Notes 2-1:
+- Made changes (mgboost implementation) to xgboost package in anaconda:
+  /Users/Ashtekar15/opt/anaconda3/lib/python3.7/site-packages/xgboost
+- Original xgboost package (NOT mgboost) on desktop:
+  /Users/Ashtekar15/Desktop/TEMP_MGBoost/ORIGINAL_XGBoost/xgboost
+- Will need to manually move the original package into anaconda package to restore original...
+
+------------------------------------------------------------------------------------------------------
+Notes 2-3:
+
+Plan to implement Pareto logistic regression:
+- Start with ML coursera implementation
+    - Plan:
+
+        Compute gradients for female, male separately
+        Average gradients for each group, separately
+        Call pareto function on average gradients
+        Use pareto-ed gradients to update model parameters
+
+- First, test log reg performance on adult dataset
+    - Also compare to baseline (guess majority label)
+    - Use both sklearn and my implementation
+- Easily load adult dataset using lightsvm format (?)
+
+------------------------------------------------------------------------------------------------------
+Notes 2-4:
+- First, run LTR script and save pairwise matrix W
+- Implement algorithm in Jupyter
+
+------------------------------------------------------------------------------------------------------
+Questions/meeting notes 2-10:
+- Classification with pairwise information
+    - Problem framing:
+        - Input: pairwise comparison matrices
+        - Output: classification (?) model for original dataset
+        - Similar to uncoupled regression:
+            - Input: unlabeled data, labels (targets)
+                - Also pairwise comparison data
+            - Ouput: regression model
+    - Submit to KDD by Thursday??
+        - Main idea of paper: algorithm in Pareto LTC draft
+        - Still need empirical results
+            - My job?
+        - My name on paper?
+
+- Pareto logistic regression
+    - Mentioned evaluating performance differently (other than accuracy for each subgroup?)
+
+Notes from meeting:
+- Do not have time to submit to KDD, target another conference instead
+- Data generation: train pairwise ranker (like lambdamart) on dataset with features and (-1, +1) binary labels
+    - Ranker outputs nxn pairwise comparison matrix, used for training CWPI algo
+- Play with sent code, make it run
+    - Clean up code as well
+- Re-read CMU paper
+    - "Noise-Tolerant Interactive Learning Using Pairwise Comparisons"
+
+Quotes/other from meeting:
+- Referencing Patrick McDaniel/ML security lab:
+    - "He publishes one paper with Ian Goodfellow. Then the rest? That's not research."
+    - "If you want to paint your house, would you hire a painter or someone off the street?"
+    - "They want to mimic the behaviour of a DNN. Guess how many times they query it to get training data? 140 times. If they could
+      get a DNN to learn from 140 training examples, they could buy the entire department lunch."
+Department:
+- "Who in the department is doing fundamental ML research? There's me, and that's it. The rest are doing applied."
+- "They publish their results on MNIST. It's way too easy."
+Me:
+- "If you want to go to a top 5 grad school, then you must publish beforehand."
+- "So do you want to go to Penn State or somewhere better? If you want to go somewhere better, then why are you asking me?"
+- "You should be less focused on publishing. This is research -- we don't know which direction it will go, what will work and what won't."
+
+------------------------------------------------------------------------------------------------------
+Notes 2-11:
+- Can use tensorflow directly from jupyter notebook/anaconda
+    - pip installed within anaconda
+    - Note that tensoflow version is '1.13.0-rc1'
+        - Downgraded in order to work with Mehdi's implementation
+        - Latest version is '2.1.0'
+- Mehdi's implementation runs with tf version is '1.13.0-rc1' (currently installed)
+- Next steps:
+    - Understand code
+    - Read CMU paper
+    - Clean up to work with latest tf version (?)
+
+------------------------------------------------------------------------------------------------------
+Notes 2-26:
+- Re-read blog post
+- Skim CMU papers
+- Look at algorithm
+- Push to github?
+    - Wait, just say you had a busy week
+
+Notes from meeting:
+- Work more similar to Tokyo paper (SU classification)
+  http://proceedings.mlr.press/v80/bao18a/bao18a.pdf
+  https://github.com/levelfour/SU_Classification (implementation)
+  https://ieeexplore.ieee.org/document/8683118
+- NIPS in two months
+- Compare accuracy of our algo to Tokyo paper
+    - Same amount of training data
+    - Create matrix:
+        - Row > col: +1
+        - Row < col: 0
+        - Row == col: 0.5
+- Email when experiments complete
+    - Potentially: Wednesday next week 4pm
+
+------------------------------------------------------------------------------------------------------
+Notes 3-2:
+- Re-read CWPI draft
+- Run experiment on adult dataset with pairwise label matrix
+- Look at Tokyo paper/experiments/githb
+
+Other:
+- Consider testing CWPI on a very simple dataset (exam scores)
+
+------------------------------------------------------------------------------------------------------
+Notes 3-4:
+- Clean up CWPI code
+- Write model code as a function
+
+NOTE) Deleted 'generate_dataset' folder from test_data, uploaded to google drive
+      Code here:
+      https://github.com/acbull/Unbiased_LambdaMart/blob/master/evaluation/scripts/generate_data.py
+
+------------------------------------------------------------------------------------------------------
+Questions 3-5:
+- Eq 7: is f(x) (overall model's predictions) binary (-1, +1) or a continuous value? If it is continuous,
+  should it be bounded (-1, +1)?
+- Step 12: should be yhat = -1 instead of yhat = 0?
+
+------------------------------------------------------------------------------------------------------
+Notes 3-25:
+- Compare Mehdi's implementation to mine (memory difference?)
+- Make final algorithm code reusable (make into function)
+- Look up datasets in 'Classification from Pairwise Similarity and Unlabeled Data' paper
+  https://arxiv.org/pdf/1802.04381.pdf
+
+------------------------------------------------------------------------------------------------------
+Notes
+- UPDATE NUMPY/PANDAS BEFORE SENDING CODE TO MEHRDAD
+    - Done, but don't forget to do this in the future
+- Did not run:
+    - waveform (3 classes of waves, not binary classification)
+- Data not on libsvm:
+    - banana
+      https://www.openml.org/t/10091
+    - magic
+      https://archive.ics.uci.edu/ml/datasets/magic+gamma+telescope
+    - phoneme
+      https://www.openml.org/d/1489
+    - spambase
+      http://archive.ics.uci.edu/ml/datasets/spambase
+    - waveform
+      https://archive.ics.uci.edu/ml/datasets/Waveform+Database+Generator+%28Version+2%29
+
+To include in github repo:
+- experiments/
+- main.py
+- extra.ipynb
+- README.md (need to create)
+    - Include link to google drive with datasets
+    - Include link to google drive with results sheet
+
+Note) moved higgs data from /Users/Ashtekar15/Desktop/Thesis/MGBoost/other/test_data/higgs-boson/data/
+                         to /Users/Ashtekar15/Desktop/Thesis/MGBoost/other/test_scripts/pairwise/LambdaBoost-master/data/higgs
+
+------------------------------------------------------------------------------------------------------
+CWPI Questions:
+- CAN I USE THIS AS MY THESIS?
+- NEURIPS DEADLINE NOT EXTENDED?
+    - May 5th abstract
+    - May 12th paper
+- Eq 7: is f(x) (overall model's predictions) binary (-1, +1) or a continuous value? If it is continuous,
+    should it be bounded (-1, +1)?
+- Step 12: should be yhat = -1 instead of yhat = 0?
+- Step 13: is this adding the coefficients for each model together? Or is this adding predictions of each
+  individual model together?
+    - In linear case: adding coefficients is the same as adding predictions (?)
+    - In nonlinear cases: no way to add coefficients together (?)
+- Using decision trees rather than linear svm works much better -- why use linear SVM?
+    - Can learn nonlinearities with trees, not with linear SVM...
+    - Using decision trees is fine since the gradient epsilon is agnostic of weights (gradient WRT predictions, not weights)
+- Potential issue with using W with {0, 0.5, 1} entries
+    - A person could easily figure out the true labels given W:
+        Any row with 0: true label of -1
+        Any row with 1: true label of +1
+    - Algorithm recovers true labels in first step
+    - No case where two entries have same label but one ranked above the other
+    - If using ranks instead, the model's performance is upper bounded by the quality of ranks
+        - "ML model only as good as data it is given"
+- LambdaBoost often outperforms/matches SUPERVISED LEARNING baselines
+- To use this algorithm in practice, do you only need to have half of the W matrix (only entries above or
+  below the diagonal)?
+- Implementation works -- however, when I consider "The gradient of multiplicative objective for linear model"
+  (second page bottom/middle), ignoring the product over K, the gradient is different (simply f'(x)). Does this
+  mean that the denominator in Eij doesn't matter (equation 7)?
+    - lambdas in LambdaMART are epsilons here, derivative of cost WRT predictions, not parameters
+- How did you come up with the equation for computing alpha (step 12)?
+- How did you come up with loss function/intution (eq 1)?
+    - Cases where nonzero
+- Could try adding noise/using ranking (from svm, etc) to create W, plot performance
+
+To do:
+- Revisit creating W from ranking
+    - Situation where two points have same label but one is ranked higher (since closer to decision boundary)
+- Confirm that the denominator (eq 7) for computing epsilon doesn't matter?
+- Confirm labels (step 8) are equal to original labels after/during one iteration?
+
+------------------------------------------------------------------------------------------------------------------------
+Papers read:
+
+- Regression with comparisons: escaping the curse of dimensionality with ordinal information (CMU 2019)
+    - Two regression w/ comparison algorithms:
+        - R^2 Ranking-Regression
+            - Isotonic regression (regression consistent with ranking)
+            - Uses nearest-neighbor
+            - Escapes curse of dimensionality: error rate only depends on num labels and num comparisons, not on
+              dimensionality
+        - CLR Comparison linear regression
+            - Converts regression to series of classification problems, used to find weight vector
+    - Experiments:
+        - Synthetic data
+        - Predicting age from photographs
+        - Estimating AirBnB prices
+
+- Noise-tolerant interactive learning using pairwise comparisons (CMU 2017)
+    - Reduces problem of classification given pairwise information to binary search
+    - Frames as active learning with labeling and comparison oracles
+    - Discusses noisy data
+
+- Blog (CMU)
+    - https://blog.ml.cmu.edu/2019/03/29/building-machine-learning-models-via-comparisons/
+    - Summarizes main ideas in two papers above
+
+- Classification from pairwise similarity and unlabeled data (Tokyo 2018)
+    - Learning from similar-unlabeled data
+    - Creates and optimizes loss function for setting
+    - Linear model
+    - I did experiments with these datasets
+
+- Classification from pairwise similarities/dissimilarities and unlabeled data via empirical risk minimization (Tokyo 2019)
+    - Extension of similar-unlabeled (2018 paper) to dissimilar-unlabeled and similar-dissimilar
+    - Dissimilar-unlabeled and similar-dissimilar combined is best performance
+    - Related setup to Tokyo 2018 paper
+
+- Uncoupled regression from pairwise comparison data (Tokyo 2019)
+    - Uncoupled regression: given unlabeled features and labels, don't have correspondence
+    - Solves using pairwise comparisons
+        ex) Point Xi has larger label value than point Xj
+    - Show for linear models, URPC has similar performance as supervised learning
+    - Uses empirical risk minimization (rather than ranking) with two methods:
+        - Risk approximation
+        - Target transformation
+
+- The power of comparisons for actively learning linear classifiers (UCSD 2019)
+    - Hard time following...
+        - Sphere-packing? Caps? Gamma-ball?
+    - Shows active learning requires exponentially fewer samples (with assumptions) when given comparison information
+    - Discusses RPU (reliable and probably useful) model
+        - Cannot be wrong, can say idk
+        - Shows not intractable wrt num labels
+------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.
