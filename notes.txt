@@ -510,39 +510,53 @@ Note) moved higgs data from /Users/Ashtekar15/Desktop/Thesis/MGBoost/other/test_
 ------------------------------------------------------------------------------------------------------
 CWPI Questions:
 - CAN I USE THIS AS MY THESIS?
+
 - NEURIPS DEADLINE NOT EXTENDED?
     - May 5th abstract
     - May 12th paper
-- Eq 7: is f(x) (overall model's predictions) binary (-1, +1) or a continuous value? If it is continuous,
-    should it be bounded (-1, +1)?
-- Step 12: should be yhat = -1 instead of yhat = 0?
-- Step 13: is this adding the coefficients for each model together? Or is this adding predictions of each
-  individual model together?
-    - In linear case: adding coefficients is the same as adding predictions (?)
-    - In nonlinear cases: no way to add coefficients together (?)
-- Using decision trees rather than linear svm works much better -- why use linear SVM?
-    - Can learn nonlinearities with trees, not with linear SVM...
-    - Using decision trees is fine since the gradient epsilon is agnostic of weights (gradient WRT predictions, not weights)
-- Potential issue with using W with {0, 0.5, 1} entries
-    - A person could easily figure out the true labels given W:
-        Any row with 0: true label of -1
-        Any row with 1: true label of +1
-    - Algorithm recovers true labels in first step
-    - No case where two entries have same label but one ranked above the other
-    - If using ranks instead, the model's performance is upper bounded by the quality of ranks
-        - "ML model only as good as data it is given"
-- LambdaBoost often outperforms/matches SUPERVISED LEARNING baselines
-- To use this algorithm in practice, do you only need to have half of the W matrix (only entries above or
-  below the diagonal)?
+
 - Implementation works -- however, when I consider "The gradient of multiplicative objective for linear model"
   (second page bottom/middle), ignoring the product over K, the gradient is different (simply f'(x)). Does this
   mean that the denominator in Eij doesn't matter (equation 7)?
     - lambdas in LambdaMART are epsilons here, derivative of cost WRT predictions, not parameters
-- How did you come up with the equation for computing alpha (step 12)?
-- How did you come up with loss function/intution (eq 1)?
-    - Cases where nonzero
+
+- Using decision trees rather than linear svm works much better -- why use linear SVM?
+    - Can learn nonlinearities with trees, not with linear SVM...
+    - Using decision trees is fine since the gradient epsilon is agnostic of weights (gradient WRT predictions, not weights)
+
+- Potential issue with using W with {0, 0.5, 1} entries
+    - A person could easily figure out the true labels given W:
+        Any row with 0: true label of -1
+        Any row with 1: true label of +1
+    - Algorithm recovers true labels in first step, then performs boosting
+    - No case where two entries have same label but one ranked above the other
+    - If using ranks instead, the model's performance is upper bounded by the quality of ranks (?)
+        - "ML model only as good as data it is given"
+
 - Could try adding noise/using ranking (from svm, etc) to create W, plot performance
 
+- To use this algorithm in practice, do you only need to have half of the W matrix (only entries above or
+  below the diagonal)?
+    - Equivalently: should matrix W be symmetric (across diagonal)?
+
+- LambdaBoost often outperforms/matches SUPERVISED LEARNING baselines
+
+- Eq 7: is f(x) (overall model's predictions) binary (-1, +1) or a continuous value? If it is continuous,
+  should it be bounded (-1, +1)?
+
+- Step 12: should be yhat = -1 instead of yhat = 0?
+
+- Step 13: is this adding the coefficients for each model together? Or is this adding predictions of each
+  individual model together?
+    - In linear case: adding coefficients is the same as adding predictions (?)
+    - In nonlinear cases: no way to add coefficients together (?)
+
+- How did you come up with the equation for computing alpha (step 12)?
+
+- How did you come up with loss function/intution (eq 1)?
+    - Cases where nonzero
+
+------------------------------------------------------------------------------------------------------------------------
 To do:
 - Revisit creating W from ranking
     - Situation where two points have same label but one is ranked higher (since closer to decision boundary)
@@ -551,14 +565,13 @@ To do:
 
 ------------------------------------------------------------------------------------------------------------------------
 Papers read:
-
 - Regression with comparisons: escaping the curse of dimensionality with ordinal information (CMU 2019)
     - Two regression w/ comparison algorithms:
         - R^2 Ranking-Regression
             - Isotonic regression (regression consistent with ranking)
             - Uses nearest-neighbor
             - Escapes curse of dimensionality: error rate only depends on num labels and num comparisons, not on
-              dimensionality
+              dimensionality of features
         - CLR Comparison linear regression
             - Converts regression to series of classification problems, used to find weight vector
     - Experiments:
@@ -603,7 +616,44 @@ Papers read:
         - Cannot be wrong, can say idk
         - Shows not intractable wrt num labels
 ------------------------------------------------------------------------------------------------------------------------
+Meeting notes 4-20:
+- Run experiments with number of labeled points (m) varying
+    - Replace unknowns with 0.5
+    - Create plots of accuracy or error as m goes from 10 (?) -> (n(n - 1) / 2)
+        - Since W is symmetric, don't need n^2
+    - Gives fair comparison to Tokyo paper
+- Also run experiments with W created from ranking
+    - From pairwise similar-dissimilar data
+        - Idea: want to perform classification without any labeled data at any point
+    - Look at Mehdi's code
+        - Using SVM rank
+- Theory needed for NeurIPS
+    - Need reasoning for why we don't need log(n) labels
+- NeurIPS deadline has been extended
+    - May 27: abstract
+    - June 3: paper
+- I can use this project as my thesis
 
+------------------------------------------------------------------------------------------------------------------------
+Notes 4-21:
+- "Classification from Pairwise Similarity and Unlabeled Data"
+    - Figure 4: {200, 400, 800, 1600} data with half similar, half unlabeled
+    - Figure 5: 200 similar data, {200, 400, 800, 1600} unlabeled data
+    - Table 4: 500 similar, 500 unlabeled, 100 test
+
+- My experiments:
+    - Dataset sizes:
+        - TRAIN_SIZE = {200, 400, 800, 1600} total train data
+        - NUM_LABELS = {100, 200, 400, 800} labeled train data
+        - TEST_SIZE  = {100, 200, 400, 800} test data
+    - Record both train and test accuracy/error
+    - Not varying NUM_LABELS:TRAIN_SIZE ratio (?)
+        - Could also try a set TRAIN_SIZE, vary NUM_LABELS:
+            - TRAIN_SIZE = 1000
+            - NUM_LABELS = {100, 200, 300, 400, 500, 600, 700, 800, 900, 1000}
+            - TEST_SIZE = 100
+
+------------------------------------------------------------------------------------------------------------------------
 
 
 
