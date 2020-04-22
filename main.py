@@ -3,12 +3,21 @@ import matplotlib.pyplot as plt
 import os
 import subprocess as sp
 from sklearn.preprocessing import minmax_scale
+from sklearn.model_selection import train_test_split
 from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from sklearn.metrics import accuracy_score
+from matplotlib import pyplot as plt
+from matplotlib import style; style.use('ggplot')
+
+TRAIN_SIZES = [200, 400, 800, 1600]
+NUM_LABELS  = [100, 200, 400, 800]
+TEST_SIZES  = [100, 200, 400, 800]
+NUM_TRIALS  = 4
+NUM_REPEATS = 5
 
 # def gen_conf_matrix1(y,sigma):
 #   """
@@ -22,6 +31,7 @@ from sklearn.metrics import accuracy_score
 #   exp_sum_y = np.exp(exp_y).reshape(-1,1).dot(np.exp(exp_y).reshape(1,-1))
 #   log_exp_sum_y = np.log(exp_sum_y)
 #   return expand_y / log_exp_sum_y
+#
 #
 # def gen_conf_matrix(y, sigma):
 #   """
@@ -39,6 +49,7 @@ from sklearn.metrics import accuracy_score
 #       W[j,i] = p_ji
 #   return W
 #
+#
 # def cal_probability(y_i, y_j):
 #   """
 #   Helper function for gen_conf_matrix
@@ -46,6 +57,7 @@ from sklearn.metrics import accuracy_score
 #   """
 #   p_ij = y_i / (y_i + y_j)
 #   return p_ij, 1 - p_ij
+
 
 def cal_uncertainty(y, W):
   """
@@ -59,6 +71,7 @@ def cal_uncertainty(y, W):
   normalized_weighted_distance = [wd/np.sum(wd) for wd in weighted_distance]
   return np.sum(normalized_weighted_distance, 0)
 
+
 def pairwise_distance(y):
   """ Helper function used in cal_uncertainty """
   # Calculate the pairwise exponential distance matrix of instances
@@ -70,6 +83,7 @@ def pairwise_distance(y):
     y = y.T
   return np.exp(-y).dot(np.exp(y).T)
 
+
 def cal_weights(xi):
   """
   Computes importance (weight) of each instance, wi
@@ -77,6 +91,7 @@ def cal_weights(xi):
   Equation 8
   """
   return np.sum(xi - xi.T, 1)
+
 
 def cal_alpha(y, xi):
   """
@@ -88,6 +103,7 @@ def cal_alpha(y, xi):
   I_1 = xi * y_p.dot(y_n.T)
   I_2 = xi * y_n.dot(y_p.T)
   return 0.5 * np.log(np.sum(I_1)/np.sum(I_2))
+
 
 ################################################################################
 # Neil's Code
@@ -109,17 +125,39 @@ def generate_W(y_train):
 
     return W
 
-def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, SAMPLE_PROP=4, RANDOM_SEED=1):
+
+def clear_W(W, m):
+    """ Replace entries in W with 0.5 to get m total labels """
+
+    # Get indices of upper triangle of nxn matrix
+    n = W.shape[0]
+    idx = np.triu_indices(n, k=1)
+    idx = np.hstack((idx[0].reshape(-1, 1), idx[1].reshape(-1, 1)))
+
+    # Randomly select some index pairs
+    rm_row = np.random.choice(idx.shape[0], size=n-m, replace=False)
+    rm_idx = idx[rm_row]
+
+    # Clear out selected elements symmetrically across diagonal
+    for (i, j) in rm_idx:
+        W[i, j] = 0.5
+        W[j, i] = 0.5
+
+    return W
+
+
+def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=4, random_seed=1, verbose=True):
     """ Generates linear svm lambdaboost classifier """
 
-    print('LINEAR SVM SUBMODELS')
+    if verbose:
+        print('LINEAR SVM SUBMODELS')
+        print('Using %d classifiers, sample proportion of %d, and random seed %d'
+              % (T, sample_prop, random_seed))
 
     # Constants
     m = X_train.shape[0]
     n = X_train.shape[1]
-    np.random.seed(RANDOM_SEED)
-    print('Using %d classifiers, sample proportion of %d, and random seed %d'
-          % (T, SAMPLE_PROP, RANDOM_SEED))
+    np.random.seed(random_seed)
 
     # Initialize model parameters
     f_intercept = 0
@@ -148,12 +186,12 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, SAMPLE_PROP=4, RA
         # Step 9: create training (sample) data by sampling based on weights
         p_weights = np.abs(weights)
         p_weights /= np.sum(p_weights)
-        sample = np.random.choice(m, size=m*SAMPLE_PROP, replace=True, p=p_weights)
+        sample = np.random.choice(m, size=m*sample_prop, replace=True, p=p_weights)
         X_sample = X_train[sample]
         y_sample = y[sample]
 
         # Step 10: learn binary classifier on training (sample) data
-        clf = LinearSVC(max_iter=10000)
+        clf = LinearSVC(max_iter=1000)
         clf.fit(X_sample, y_sample)
 
         # Step 11: predict labels using current classifier
@@ -175,31 +213,40 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, SAMPLE_PROP=4, RA
         y_test_pred = np.dot(X_test, f_coefficient) + f_intercept
         y_train_pred = np.sign(y_train_pred)
         y_test_pred = np.sign(y_test_pred)
-        if t == 2: print('t\tTrain\t\tTest')
-        print('%d\t%.3f\t\t%.3f' %(t - 1,
-                                   accuracy_score(y_train, y_train_pred),
-                                   accuracy_score(y_test, y_test_pred)))
-        if alpha_t < 0: print('Alpha %.3f, terminated' % alpha_t)
 
-    print('Done!')
+        if verbose:
+            if t == 2:
+                print('t\tTrain\t\tTest')
+            print('%d\t%.3f\t\t%.3f' %(t - 1,
+                                       accuracy_score(y_train, y_train_pred),
+                                       accuracy_score(y_test, y_test_pred)))
+            if alpha_t < 0:
+                print('Alpha %.3f, terminated' % alpha_t)
+
+    if verbose:
+        print('Done!')
 
     # To skip initialized 0 in alpha list
     alpha = alpha[1:]
 
-    # Return final classifier parameters, weight of each submodel
-    return f_coefficient, f_intercept, alpha
+    """ CHANGED """
+    # # Return final classifier parameters, weight of each submodel
+    # return f_coefficient, f_intercept, alpha
+    return 1 - accuracy_score(y_train, y_train_pred), 1 - accuracy_score(y_test, y_test_pred)
 
-def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, SAMPLE_PROP=4, RANDOM_SEED=1):
+
+def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=4, random_seed=1, verbose=True):
     """ Generates decision tree lambdaboost classifier """
 
-    print('DECISION TREE SUBMODELS')
+    if verbose:
+        print('DECISION TREE SUBMODELS')
+        print('Using %d classifiers, sample proportion of %d, and random seed %d'
+              % (T, sample_prop, random_seed))
 
     # Constants
     m = X_train.shape[0]
     n = X_train.shape[1]
-    np.random.seed(RANDOM_SEED)
-    print('Using %d classifiers, sample proportion of %d, and random seed %d'
-          % (T, SAMPLE_PROP, RANDOM_SEED))
+    np.random.seed(random_seed)
 
     # Initialize counters
     t = 1
@@ -231,7 +278,7 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, SAMPLE_PROP=4, R
         # Step 9: create training (sample) data by sampling based on weights
         p_weight = np.abs(weight)
         p_weight /= np.sum(p_weight)
-        sample = np.random.choice(m, size=m*SAMPLE_PROP, replace=True, p=p_weight)
+        sample = np.random.choice(m, size=m*sample_prop, replace=True, p=p_weight)
         X_sample = X_train[sample]
         y_sample = y[sample]
 
@@ -257,16 +304,82 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, SAMPLE_PROP=4, R
         y_test_pred = sum([alpha[i] * f[i].predict(X_test) for i in range(t - 1)])
         y_train_pred = np.sign(y_train_pred)
         y_test_pred = np.sign(y_test_pred)
-        if t == 2: print('t\tTrain\t\tTest')
-        print('%d\t%.3f\t\t%.3f' %(t - 1,
-                                   accuracy_score(y_train, y_train_pred),
-                                   accuracy_score(y_test, y_test_pred)))
-        if alpha_t < 0: print('Alpha %.3f, terminated' % alpha_t)
 
-    print('Done!')
+        if verbose:
+            if t == 2: print('t\tTrain\t\tTest')
+            print('%d\t%.3f\t\t%.3f' %(t - 1,
+                                       accuracy_score(y_train, y_train_pred),
+                                       accuracy_score(y_test, y_test_pred)))
+            if alpha_t < 0: print('Alpha %.3f, terminated' % alpha_t)
 
-    # Return subtrees and weights for each
-    return f, alpha
+    if verbose:
+        print('Done!')
+
+    """ CHANGED """
+    # # Return subtrees and weights for each
+    # return f, alpha
+    return 1 - accuracy_score(y_train, y_train_pred), 1 - accuracy_score(y_test, y_test_pred)
+
+
+def data_size_experiment(X, y):
+    """ Run experiments modifying training data size and number of labels """
+
+    svm_arr  = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
+    tree_arr = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
+
+    for i in range(NUM_TRIALS):
+
+        for j in range(NUM_REPEATS):
+
+            # Ensure train and test sets disjoint
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
+                                                                stratify=y)
+
+            # Only use some of training data
+            train_samples = np.random.permutation(X_train.shape[0])[:TRAIN_SIZES[i]]
+            X_train = X_train[train_samples]
+            y_train = y_train[train_samples]
+
+            # Only use some of testing data
+            test_samples = np.random.permutation(X_test.shape[0])[:TEST_SIZES[i]]
+            X_test = X_test[test_samples]
+            y_test = y_test[test_samples]
+
+            # Use partially filled in W pairwise comparison matrix
+            W = generate_W(y_train)
+            W = clear_W(W, NUM_LABELS[i])
+
+            # Fill in results as (train error, test error)
+            svm_arr[i, j, 0], svm_arr[i, j, 1]   = svm_lambdaboost(X_train, y_train,
+                                                                   X_test, y_test,
+                                                                   W, verbose=False)
+            tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
+                                                                    X_test, y_test, W,
+                                                                    verbose=False)
+
+            print(NUM_REPEATS * i + j + 1)
+
+    return svm_arr, tree_arr
+
+def plot_err(arr, dname, mname):
+    """ Plots performance when modifying training data size and number of labels"""
+
+    x = NUM_LABELS
+    y = np.mean(arr, axis=1)
+
+    plt.rcParams['figure.figsize'] = [8, 4]
+
+    plt.plot(x, y[:, 1])
+    plt.plot(x, y[:, 0])
+    plt.scatter(x, y[:, 1], label='Test')
+    plt.scatter(x, y[:, 0], label='Train')
+    plt.legend()
+    plt.title(dname + ' Dataset, ' + mname + ' Model')
+    plt.xlabel('m: Number of Labeled Points')
+    plt.ylabel('Classification Error')
+
+    return None
+
 
 def baselines(X_train, y_train, X_test, y_test):
     """ Performance baselines """
