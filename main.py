@@ -294,7 +294,7 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, r
         y_sample = y[sample]
 
         # Step 10: learn binary classifier on training (sample) data
-        clf = DecisionTreeClassifier(max_depth=3)
+        clf = DecisionTreeClassifier(max_depth=5)
         clf.fit(X_sample, y_sample)
 
         # Step 11: predict labels using current classifier
