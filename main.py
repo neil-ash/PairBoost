@@ -13,11 +13,12 @@ from sklearn.metrics import accuracy_score
 from matplotlib import pyplot as plt
 from matplotlib import style; style.use('ggplot')
 
-TRAIN_SIZES = [200, 400, 800, 1600]
-NUM_LABELS  = [100, 200, 400, 800]
-TEST_SIZES  = [100, 200, 400, 800]
-NUM_TRIALS  = 4
-NUM_REPEATS = 5
+# Consistent with Tokyo 2019 paper
+NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
+TRAIN_SIZES = NUM_LABELS + 500
+TEST_SIZE   = 500
+NUM_TRIALS  = len(NUM_LABELS)
+NUM_REPEATS = 10
 
 # def gen_conf_matrix1(y,sigma):
 #   """
@@ -68,8 +69,9 @@ def cal_uncertainty(y, W):
   # Returns uncertaintity matrix \xi
   pair_dist = pairwise_distance(y)
   weighted_distance = [W_k * pair_dist for W_k in W]
-  normalized_weighted_distance = [wd/np.sum(wd) for wd in weighted_distance]
-  return np.sum(normalized_weighted_distance, 0)
+  return np.sum(weighted_distance, axis=0)
+  # normalized_weighted_distance = [wd/np.sum(wd) for wd in weighted_distance]
+  # return np.sum(normalized_weighted_distance, 0)
 
 
 def pairwise_distance(y):
@@ -78,7 +80,7 @@ def pairwise_distance(y):
   # pairwise_distance_{ij} = \exp(y_j - y_i)
   y = y / (np.max(y) + 1e-12)
   if len(y.shape) == 1:
-    y = np.expand_dims(y,1)
+    y = np.expand_dims(y, 1)
   if y.shape[0] == 1:
     y = y.T
   return np.exp(-y).dot(np.exp(y).T)
@@ -90,7 +92,7 @@ def cal_weights(xi):
   Step 7
   Equation 8
   """
-  return np.sum(xi - xi.T, 1)
+  return np.sum(xi - xi.T, axis=1)
 
 
 def cal_alpha(y, xi):
@@ -98,11 +100,11 @@ def cal_alpha(y, xi):
   Calculates the weight of classifier i, alpha
   Step 12
   """
-  y_p = (y>0).astype(float).reshape(-1,1)
-  y_n = (y<0).astype(float).reshape(-1,1)
+  y_p = (y > 0).astype(float).reshape(-1, 1)
+  y_n = (y < 0).astype(float).reshape(-1, 1)
   I_1 = xi * y_p.dot(y_n.T)
   I_2 = xi * y_n.dot(y_p.T)
-  return 0.5 * np.log(np.sum(I_1)/np.sum(I_2))
+  return 0.5 * np.log(np.sum(I_1) / np.sum(I_2))
 
 
 ################################################################################
@@ -134,8 +136,13 @@ def clear_W(W, m):
     idx = np.triu_indices(n, k=1)
     idx = np.hstack((idx[0].reshape(-1, 1), idx[1].reshape(-1, 1)))
 
+    # Get number of elements (above diagonal, since symmetric) to clear
+    n_rel = (n * (n - 1) / 2)
+    m_rel = (m * (m - 1) / 2)
+    d_rel = int(n_rel - m_rel)
+
     # Randomly select some index pairs
-    rm_row = np.random.choice(idx.shape[0], size=n-m, replace=False)
+    rm_row = np.random.choice(idx.shape[0], size=d_rel, replace=False)
     rm_idx = idx[rm_row]
 
     # Clear out selected elements symmetrically across diagonal
@@ -146,13 +153,15 @@ def clear_W(W, m):
     return W
 
 
-def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=4, random_seed=1, verbose=True):
+def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, random_seed=None, verbose=True):
     """ Generates linear svm lambdaboost classifier """
 
     if verbose:
         print('LINEAR SVM SUBMODELS')
-        print('Using %d classifiers, sample proportion of %d, and random seed %d'
-              % (T, sample_prop, random_seed))
+        print('Using %d classifiers and sample proportion of %d'
+              % (T, sample_prop))
+        if random_seed:
+            print('Random seed %d', random_seed)
 
     # Constants
     m = X_train.shape[0]
@@ -178,15 +187,15 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=4, ra
         epsilon = cal_uncertainty(curr_pred, [W])
 
         # Step 7: compute weights
-        weights = cal_weights(epsilon)
+        weight = cal_weights(epsilon)
 
         # Step 8: extract labels
-        y = np.sign(weights)
+        y = np.sign(weight)
 
         # Step 9: create training (sample) data by sampling based on weights
-        p_weights = np.abs(weights)
-        p_weights /= np.sum(p_weights)
-        sample = np.random.choice(m, size=m*sample_prop, replace=True, p=p_weights)
+        p_weight = np.abs(weight)
+        p_weight /= (np.sum(p_weight) + 1e-12)
+        sample = np.random.choice(m, size=m*sample_prop, replace=True, p=p_weight)
         X_sample = X_train[sample]
         y_sample = y[sample]
 
@@ -235,13 +244,15 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=4, ra
     return 1 - accuracy_score(y_train, y_train_pred), 1 - accuracy_score(y_test, y_test_pred)
 
 
-def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=4, random_seed=1, verbose=True):
+def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, random_seed=None, verbose=True):
     """ Generates decision tree lambdaboost classifier """
 
     if verbose:
         print('DECISION TREE SUBMODELS')
-        print('Using %d classifiers, sample proportion of %d, and random seed %d'
-              % (T, sample_prop, random_seed))
+        print('Using %d classifiers and sample proportion of %d'
+              % (T, sample_prop))
+        if random_seed:
+            print('Random seed %d', random_seed)
 
     # Constants
     m = X_train.shape[0]
@@ -277,13 +288,13 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=4, r
 
         # Step 9: create training (sample) data by sampling based on weights
         p_weight = np.abs(weight)
-        p_weight /= np.sum(p_weight)
+        p_weight /= (np.sum(p_weight) + 1e-12)
         sample = np.random.choice(m, size=m*sample_prop, replace=True, p=p_weight)
         X_sample = X_train[sample]
         y_sample = y[sample]
 
         # Step 10: learn binary classifier on training (sample) data
-        clf = DecisionTreeClassifier(max_depth=5)
+        clf = DecisionTreeClassifier(max_depth=3)
         clf.fit(X_sample, y_sample)
 
         # Step 11: predict labels using current classifier
@@ -327,13 +338,14 @@ def data_size_experiment(X, y):
     svm_arr  = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
     tree_arr = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
 
+    print('Progress:')
+
     for i in range(NUM_TRIALS):
 
         for j in range(NUM_REPEATS):
 
             # Ensure train and test sets disjoint
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
-                                                                stratify=y)
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, stratify=y)
 
             # Only use some of training data
             train_samples = np.random.permutation(X_train.shape[0])[:TRAIN_SIZES[i]]
@@ -341,7 +353,7 @@ def data_size_experiment(X, y):
             y_train = y_train[train_samples]
 
             # Only use some of testing data
-            test_samples = np.random.permutation(X_test.shape[0])[:TEST_SIZES[i]]
+            test_samples = np.random.permutation(X_test.shape[0])[:TEST_SIZE]
             X_test = X_test[test_samples]
             y_test = y_test[test_samples]
 
@@ -352,31 +364,36 @@ def data_size_experiment(X, y):
             # Fill in results as (train error, test error)
             svm_arr[i, j, 0], svm_arr[i, j, 1]   = svm_lambdaboost(X_train, y_train,
                                                                    X_test, y_test,
-                                                                   W, verbose=False)
+                                                                   W, T=10, verbose=False)
             tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
-                                                                    X_test, y_test, W,
-                                                                    verbose=False)
+                                                                    X_test, y_test,
+                                                                    W, T=10, verbose=False)
 
             print(NUM_REPEATS * i + j + 1)
 
     return svm_arr, tree_arr
 
-def plot_err(arr, dname, mname):
+
+def plot_err(arr, dname, mname, save=False):
     """ Plots performance when modifying training data size and number of labels"""
 
     x = NUM_LABELS
-    y = np.mean(arr, axis=1)
+    y = np.median(arr, axis=1)
 
     plt.rcParams['figure.figsize'] = [8, 4]
+    title = dname + ' Dataset, ' + mname + ' Model'
 
     plt.plot(x, y[:, 1])
     plt.plot(x, y[:, 0])
     plt.scatter(x, y[:, 1], label='Test')
     plt.scatter(x, y[:, 0], label='Train')
     plt.legend()
-    plt.title(dname + ' Dataset, ' + mname + ' Model')
+    plt.title(title)
     plt.xlabel('m: Number of Labeled Points')
     plt.ylabel('Classification Error')
+
+    if save:
+        plt.savefig('plots/' + title + '.png', bbox_inches='tight')
 
     return None
 
@@ -395,7 +412,7 @@ def baselines(X_train, y_train, X_test, y_test):
     knn.fit(X_train, y_train)
 
     # Linear model
-    svm = LinearSVC(max_iter=10000)
+    svm = LinearSVC(max_iter=1000)
     svm.fit(X_train, y_train)
 
     # Random forest

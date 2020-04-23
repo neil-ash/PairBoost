@@ -615,6 +615,7 @@ Papers read:
     - Discusses RPU (reliable and probably useful) model
         - Cannot be wrong, can say idk
         - Shows not intractable wrt num labels
+
 ------------------------------------------------------------------------------------------------------------------------
 Meeting notes 4-20:
 - Run experiments with number of labeled points (m) varying
@@ -636,22 +637,39 @@ Meeting notes 4-20:
 
 ------------------------------------------------------------------------------------------------------------------------
 Notes 4-21:
-- "Classification from Pairwise Similarity and Unlabeled Data"
-    - Figure 4: {200, 400, 800, 1600} data with half similar, half unlabeled
-    - Figure 5: 200 similar data, {200, 400, 800, 1600} unlabeled data
-    - Table 4: 500 similar, 500 unlabeled, 100 test
 
-- My experiments:
-    - Dataset sizes:
-        - TRAIN_SIZE = {200, 400, 800, 1600} total train data
-        - NUM_LABELS = {100, 200, 400, 800} labeled train data
-        - TEST_SIZE  = {100, 200, 400, 800} test data
-    - Record both train and test accuracy/error
-    - Not varying NUM_LABELS:TRAIN_SIZE ratio (?)
-        - Could also try a set TRAIN_SIZE, vary NUM_LABELS:
-            - TRAIN_SIZE = 1000
-            - NUM_LABELS = {100, 200, 300, 400, 500, 600, 700, 800, 900, 1000}
-            - TEST_SIZE = 100
+"Classification from Pairwise Similarity and Unlabeled Data":
+- Figure 4: {200, 400, 800, 1600} data with half similar, half unlabeled
+- Figure 5: 200 similar data, {200, 400, 800, 1600} unlabeled data
+- Table 4: 500 similar, 500 unlabeled, 100 test
+
+My experiments:
+- Dataset sizes:
+    - TRAIN_SIZE = {200, 400, 800, 1600} total train data
+    - NUM_LABELS = {100, 200, 400, 800} labeled train data
+    - TEST_SIZE  = {100, 200, 400, 800} test data
+- Record both train and test accuracy/error
+- Not varying NUM_LABELS:TRAIN_SIZE ratio (?)
+    - Could also try a set TRAIN_SIZE, vary NUM_LABELS:
+        - TRAIN_SIZE = 1000
+        - NUM_LABELS = {100, 200, 300, 400, 500, 600, 700, 800, 900, 1000}
+        - TEST_SIZE = 100
+
+Questions/ideas:
+- CMU binary search paper: pairwise comparisons needed include less information than W matrix
+    - Only need one entry per column, one entry per row, not on diagonal?
+    - TRACE THRU
+- Complete W matrix gives the same information as true labels -- should be comparing performance against supervised
+  models?
+    - Also compare with limited data
+    - Even in partially filled out W: still given m labels -- any better than a supervised model trained on only m
+      labels?
+- W's pairwise comparisons gives more information than similar, dissimilar, and similar-dissimilar
+    - W tells if similar or dissimilar in addition to telling which is more likely to be +1
+- RankSVM experiment: is partially filled out W the input?
+- Still haven't considered case where yi = -1, yj = -1, but Wij = 1
+    - Or with each flipped
+    - Idea: two patients, neither have cancer, one is predicted as more likely to have cancer than the other
 
 ------------------------------------------------------------------------------------------------------------------------
 
