@@ -672,10 +672,29 @@ Questions/ideas:
     - Idea: two patients, neither have cancer, one is predicted as more likely to have cancer than the other
 
 ------------------------------------------------------------------------------------------------------------------------
+TRY INCREASING T TO 25 OR 50 TO GET ALGORITHM TO STABILIZE WHEN MAKING PLOTS
+    - Issue with flipping predictions when T, max_depth too low...
+LOOK AT STD FOR EVERY m VALUE
 
+------------------------------------------------------------------------------------------------------------------------
+Pairwise Ranker
+- Randomly sample m comparisons from above diagonal of nxn matrix
+- Train LinearSVR
+    - Features: {Xi, Xj}
+    - Labels: {0, 0.5, 1}
+        - 0   if yi < yj
+        - 0.5 if yi = yj
+        - 1   if yi > yj
+- Fill in entire nxn matrix using predictions from LinearSVR
+    - minmax_scale predictions 0 -> 1
 
-
-
+To do Wednesday:
+- Review that two new functions work properly (generate_rank_labels, generate_rank_W)
+    - Comment them
+- Consider using m to be num comparisons rather than m(m-1)/2 comparisons
+    - Already fixed, experiment more
+- Run on adult and susy datasets
+    - For more iterations
 
 
 

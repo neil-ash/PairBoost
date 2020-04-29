@@ -4,7 +4,7 @@ import os
 import subprocess as sp
 from sklearn.preprocessing import minmax_scale
 from sklearn.model_selection import train_test_split
-from sklearn.svm import LinearSVC
+from sklearn.svm import LinearSVC, LinearSVR
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -13,12 +13,20 @@ from sklearn.metrics import accuracy_score
 from matplotlib import pyplot as plt
 from matplotlib import style; style.use('ggplot')
 
-# Consistent with Tokyo 2019 paper
-NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
+# # Consistent with Tokyo 2019 paper
+# NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
+# TRAIN_SIZES = NUM_LABELS + 500
+# TEST_SIZE   = 500
+# NUM_TRIALS  = len(NUM_LABELS)
+# NUM_REPEATS = 10
+
+# Temp
+# NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
+NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800])
 TRAIN_SIZES = NUM_LABELS + 500
-TEST_SIZE   = 500
+TEST_SIZE   = 1000
 NUM_TRIALS  = len(NUM_LABELS)
-NUM_REPEATS = 10
+NUM_REPEATS = 1
 
 # def gen_conf_matrix1(y,sigma):
 #   """
@@ -153,6 +161,65 @@ def clear_W(W, m):
     return W
 
 
+def generate_rank_labels(X_train, y_train, m):
+    """ """
+
+    n = y_train.size
+
+    """ Set m instead of m_rel """
+    # m_rel = int(m * (m - 1) / 2)
+
+    idx = np.triu_indices(n, k=1)
+    idx = np.hstack((idx[0].reshape(-1, 1), idx[1].reshape(-1, 1)))
+
+    save_row = np.random.choice(idx.shape[0], size=m, replace=False)
+    save_idx = idx[save_row]
+
+    X_new = np.full(shape=(m, 2 * X_train.shape[1]), fill_value=np.NaN)
+    y_new = np.full(shape=m, fill_value=np.NaN)
+    k = 0
+
+    for (i,j) in save_idx:
+
+        X_new[k] = np.hstack((X_train[i], X_train[j]))
+
+        if y_train[i] == y_train[j]:
+            y_new[k] = 0.5
+        elif y_train[i] > y_train[j]:
+            y_new[k] = 1.0
+        elif y_train[i] < y_train[j]:
+            y_new[k] = 0.0
+        k += 1
+
+    return X_new, y_new
+
+
+def generate_rank_W(X_train, y_train, m):
+    """ """
+
+    n = y_train.size
+
+    X_new, y_new = generate_rank_labels(X_train, y_train, m)
+
+    svr = LinearSVR()
+    svr.fit(X_new, y_new)
+
+    X_pair = np.full(shape=(n * n, 2 * X_train.shape[1]), fill_value=np.NaN)
+    k = 0
+
+    """ MAY ONLY WANT TO STOP HALFWAY """
+    for i in range(n):
+        for j in range(n):
+            X_pair[k] = np.hstack((X_train[i], X_train[j]))
+            k += 1
+
+    y_pair = svr.predict(X_pair)
+    y_pair = minmax_scale(y_pair, feature_range=(0, 1))
+    W = y_pair.reshape(n, n)
+
+    return W
+
+
 def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, random_seed=None, verbose=True):
     """ Generates linear svm lambdaboost classifier """
 
@@ -244,7 +311,8 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, ra
     return 1 - accuracy_score(y_train, y_train_pred), 1 - accuracy_score(y_test, y_test_pred)
 
 
-def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, random_seed=None, verbose=True):
+def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, max_depth=5, sample_prop=2, random_seed=None,
+                    verbose=True):
     """ Generates decision tree lambdaboost classifier """
 
     if verbose:
@@ -294,7 +362,7 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, r
         y_sample = y[sample]
 
         # Step 10: learn binary classifier on training (sample) data
-        clf = DecisionTreeClassifier(max_depth=5)
+        clf = DecisionTreeClassifier(max_depth=max_depth)
         clf.fit(X_sample, y_sample)
 
         # Step 11: predict labels using current classifier
@@ -332,7 +400,7 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, r
     return 1 - accuracy_score(y_train, y_train_pred), 1 - accuracy_score(y_test, y_test_pred)
 
 
-def data_size_experiment(X, y):
+def data_size_experiment(X, y, rank):
     """ Run experiments modifying training data size and number of labels """
 
     svm_arr  = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
@@ -357,17 +425,21 @@ def data_size_experiment(X, y):
             X_test = X_test[test_samples]
             y_test = y_test[test_samples]
 
-            # Use partially filled in W pairwise comparison matrix
-            W = generate_W(y_train)
-            W = clear_W(W, NUM_LABELS[i])
+            if rank:
+                # Generate W from ranker
+                W = generate_rank_W(X_train, y_train, NUM_LABELS[i])
+            else:
+                # Use partially filled in W pairwise comparison matrix
+                W = generate_W(y_train)
+                W = clear_W(W, NUM_LABELS[i])
 
             # Fill in results as (train error, test error)
             svm_arr[i, j, 0], svm_arr[i, j, 1]   = svm_lambdaboost(X_train, y_train,
                                                                    X_test, y_test,
-                                                                   W, T=10, verbose=False)
+                                                                   W, T=50, verbose=False)
             tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
                                                                     X_test, y_test,
-                                                                    W, T=10, verbose=False)
+                                                                    W, T=50, verbose=False)
 
             print(NUM_REPEATS * i + j + 1)
 
