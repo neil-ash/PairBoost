@@ -8,64 +8,25 @@ from sklearn.svm import LinearSVC, LinearSVR
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
+from xgboost import XGBClassifier, XGBRegressor
 from sklearn.metrics import accuracy_score
 from matplotlib import pyplot as plt
 from matplotlib import style; style.use('ggplot')
 
-# # Consistent with Tokyo 2019 paper
-# NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
-# TRAIN_SIZES = NUM_LABELS + 500
-# TEST_SIZE   = 500
-# NUM_TRIALS  = len(NUM_LABELS)
-# NUM_REPEATS = 10
 
-# Temp
-# NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
-NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800])
+# Consistent with Tokyo 2018/19 plots
+NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
 TRAIN_SIZES = NUM_LABELS + 500
 TEST_SIZE   = 1000
 NUM_TRIALS  = len(NUM_LABELS)
-NUM_REPEATS = 1
+NUM_REPEATS = 10
 
-# def gen_conf_matrix1(y,sigma):
-#   """
-#   Computes confidence matrix W (faster, approximate version)
-#   Step 3
-#   """
-#   exp_y = np.exp(sigma * y)
-#   n = len(y)
-#   W = np.zeros((n,n))
-#   expand_y = np.tile(y,(n,1)).T
-#   exp_sum_y = np.exp(exp_y).reshape(-1,1).dot(np.exp(exp_y).reshape(1,-1))
-#   log_exp_sum_y = np.log(exp_sum_y)
-#   return expand_y / log_exp_sum_y
-#
-#
-# def gen_conf_matrix(y, sigma):
-#   """
-#   Computes confidence matrix W
-#   Step 3
-#   Assumes labels are (-1, +1) (?)
-#   """
-#   exp_y = np.exp(sigma * y)
-#   n = len(y)
-#   W = np.zeros((n,n))
-#   for i in range(n):
-#     for j in range(i+1):
-#       p_ij, p_ji = cal_probability(exp_y[i],exp_y[j])
-#       W[i,j] = p_ij
-#       W[j,i] = p_ji
-#   return W
-#
-#
-# def cal_probability(y_i, y_j):
-#   """
-#   Helper function for gen_conf_matrix
-#   Assumes labels are (-1, +1) (?)
-#   """
-#   p_ij = y_i / (y_i + y_j)
-#   return p_ij, 1 - p_ij
+# # To compare with Tokyo 2018 table
+# NUM_LABELS  = np.array([500])
+# TRAIN_SIZES = NUM_LABELS + 500
+# TEST_SIZE   = 1000
+# NUM_TRIALS  = len(NUM_LABELS)
+# NUM_REPEATS = 10
 
 
 def cal_uncertainty(y, W):
@@ -161,28 +122,28 @@ def clear_W(W, m):
     return W
 
 
-def generate_rank_labels(X_train, y_train, m):
-    """ """
-
-    n = y_train.size
+def generate_rank_data(X_train, y_train, m):
+    """ Generates data to train a ranking model with m true labels """
 
     """ Set m instead of m_rel """
     # m_rel = int(m * (m - 1) / 2)
 
+    # Get indices of upper triangle of nxn matrix
+    n = y_train.size
     idx = np.triu_indices(n, k=1)
     idx = np.hstack((idx[0].reshape(-1, 1), idx[1].reshape(-1, 1)))
 
+    # Randomly select m index pairs
     save_row = np.random.choice(idx.shape[0], size=m, replace=False)
     save_idx = idx[save_row]
 
+    # Fill in new randomly sampled features and label differences
     X_new = np.full(shape=(m, 2 * X_train.shape[1]), fill_value=np.NaN)
     y_new = np.full(shape=m, fill_value=np.NaN)
     k = 0
 
     for (i,j) in save_idx:
-
         X_new[k] = np.hstack((X_train[i], X_train[j]))
-
         if y_train[i] == y_train[j]:
             y_new[k] = 0.5
         elif y_train[i] > y_train[j]:
@@ -195,15 +156,18 @@ def generate_rank_labels(X_train, y_train, m):
 
 
 def generate_rank_W(X_train, y_train, m):
-    """ """
+    """ Generates pairwise comparison matrix W using a learned ranker trained on m true comparisons """
 
-    n = y_train.size
+    # Get m randomly sampled pairs in W to train with
+    X_new, y_new = generate_rank_data(X_train, y_train, m)
 
-    X_new, y_new = generate_rank_labels(X_train, y_train, m)
-
-    svr = LinearSVR()
+    """ CHANGED TO XGBOOST """
+    svr = XGBRegressor(max_depth=3, n_estimators=100, objective='reg:squarederror')
+    # svr = LinearSVR()
     svr.fit(X_new, y_new)
 
+    # Fill in predicted values of W
+    n = y_train.size
     X_pair = np.full(shape=(n * n, 2 * X_train.shape[1]), fill_value=np.NaN)
     k = 0
 
@@ -385,11 +349,13 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, max_depth=5, sam
         y_test_pred = np.sign(y_test_pred)
 
         if verbose:
-            if t == 2: print('t\tTrain\t\tTest')
+            if t == 2:
+                print('t\tTrain\t\tTest')
             print('%d\t%.3f\t\t%.3f' %(t - 1,
                                        accuracy_score(y_train, y_train_pred),
                                        accuracy_score(y_test, y_test_pred)))
-            if alpha_t < 0: print('Alpha %.3f, terminated' % alpha_t)
+            if alpha_t < 0:
+                print('Alpha %.3f, terminated' % alpha_t)
 
     if verbose:
         print('Done!')
@@ -400,57 +366,63 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, max_depth=5, sam
     return 1 - accuracy_score(y_train, y_train_pred), 1 - accuracy_score(y_test, y_test_pred)
 
 
-def data_size_experiment(X, y, rank):
+def data_size_experiment(X, y, rank, random_state=None, verbose=False):
     """ Run experiments modifying training data size and number of labels """
 
     svm_arr  = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
     tree_arr = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
 
+    # Ensure train and test sets disjoint
+    X_train_all, X_test, y_train_all, y_test = train_test_split(X, y, test_size=0.5,
+                                                                stratify=y, random_state=None)
+
+    # Ensure data is sampled from same set for all trials
+    X_train_all = X_train_all[:max(TRAIN_SIZES)]
+    y_train_all = y_train_all[:max(TRAIN_SIZES)]
+    X_test  = X_test[:TEST_SIZE]
+    y_test  = y_test[:TEST_SIZE]
+
     print('Progress:')
 
     for i in range(NUM_TRIALS):
 
+        # Each new trial is trained on all the data (and more) from the prev trial
+        X_train = X_train_all[:TRAIN_SIZES[i]]
+        y_train = y_train_all[:TRAIN_SIZES[i]]
+
+        if rank:
+            # Generate W from ranker
+            W = generate_rank_W(X_train, y_train, NUM_LABELS[i])
+        else:
+            # Use partially filled in W pairwise comparison matrix
+            W = generate_W(y_train)
+            W = clear_W(W, NUM_LABELS[i])
+
         for j in range(NUM_REPEATS):
-
-            # Ensure train and test sets disjoint
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, stratify=y)
-
-            # Only use some of training data
-            train_samples = np.random.permutation(X_train.shape[0])[:TRAIN_SIZES[i]]
-            X_train = X_train[train_samples]
-            y_train = y_train[train_samples]
-
-            # Only use some of testing data
-            test_samples = np.random.permutation(X_test.shape[0])[:TEST_SIZE]
-            X_test = X_test[test_samples]
-            y_test = y_test[test_samples]
-
-            if rank:
-                # Generate W from ranker
-                W = generate_rank_W(X_train, y_train, NUM_LABELS[i])
-            else:
-                # Use partially filled in W pairwise comparison matrix
-                W = generate_W(y_train)
-                W = clear_W(W, NUM_LABELS[i])
 
             # Fill in results as (train error, test error)
             svm_arr[i, j, 0], svm_arr[i, j, 1]   = svm_lambdaboost(X_train, y_train,
                                                                    X_test, y_test,
-                                                                   W, T=50, verbose=False)
+                                                                   W, T=20, verbose=verbose)
             tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
                                                                     X_test, y_test,
-                                                                    W, T=50, verbose=False)
+                                                                    W, T=20, verbose=verbose)
 
             print(NUM_REPEATS * i + j + 1)
 
     return svm_arr, tree_arr
 
 
-def plot_err(arr, dname, mname, save=False):
+def plot_err(arr, dname, mname, save=False, group='median'):
     """ Plots performance when modifying training data size and number of labels"""
 
     x = NUM_LABELS
-    y = np.median(arr, axis=1)
+    if group == 'median':
+        y = np.median(arr, axis=1)
+    elif group == 'mean':
+        y = np.mean(arr, axis=1)
+    elif group == 'min':
+        y = np.min(arr, axis=1)
 
     plt.rcParams['figure.figsize'] = [8, 4]
     title = dname + ' Dataset, ' + mname + ' Model'
@@ -503,103 +475,3 @@ def baselines(X_train, y_train, X_test, y_test):
              accuracy_score(y_test, xgb.predict(X_test))))
 
     return None
-
-# def get_data(file_loc):
-#   f = open(file_loc, 'r')
-#   data = []
-#   for line in f:
-#     new_arr = []
-#     arr = line.split(' #')[0].split()
-#     ''' Get the score and query id '''
-#     score = arr[0]
-#     q_id = arr[1].split(':')[1]
-#     new_arr.append(int(score))
-#     new_arr.append(int(q_id))
-#     arr = arr[2:]
-#     ''' Extract each feature from the feature vector '''
-#     for el in arr:
-#       new_arr.append(float(el.split(':')[1]))
-#     data.append(new_arr)
-#   f.close()
-#   return np.array(data)
-#
-# def clean_data(source_path, dest_path):
-#   source_file = open(source_path, 'r')
-#   dest_file = open(dest_path, 'a')
-#   for line in source_file:
-#     arr = line.split(' #')[0]
-#     if arr[0]=='2':
-#       continue
-#     arr += ' \n'
-#     dest_file.write(arr)
-#   source_file.close()
-#   dest_file.close()
-#   return
-#
-# def plot_svc_decision_function(clf, ax=None):
-#   """Plot the decision function for a 2D SVC"""
-#   if ax is None:
-#     ax = plt.gca()
-#   x = np.linspace(plt.xlim()[0], plt.xlim()[1], 30)
-#   y = np.linspace(plt.ylim()[0], plt.ylim()[1], 30)
-#   Y, X = np.meshgrid(y, x)
-#   P = np.zeros_like(X)
-#   for i, xi in enumerate(x):
-#     for j, yj in enumerate(y):
-#       P[i, j] = clf.decision_function([xi, yj])
-#   # plot the margins
-#   ax.contour(X, Y, P, colors='k',
-#               levels=[-1, 0, 1], alpha=0.5,
-#               linestyles=['--', '-', '--'])
-#
-#
-# def get_rank_svmrank(data_path,
-#                      model_path='svm_rank_model.dat',
-#                      rank_path='svm_rank_score.dat',
-#                      c=3,
-#                      remove_files=True,
-#                      generate_label=False):
-#   #Learn Ranks using SVM-rank
-#   run_score_learning = ['./SVMrank/svm_rank_learn','-c', '2', data_path, model_path]
-#   run_score_cal = ['./SVMrank/svm_rank_classify', data_path, model_path, rank_path]
-#   sp.call(run_score_learning)
-#   sp.call(run_score_cal)
-#
-#   #Load ranks
-#   ranks=[]
-#   with open(rank_path, 'r') as f:
-#       for line in f:
-#           ranks.append(float(line))
-#   ranks=[np.array(ranks)]
-#
-#   # Remove generated files
-#   if remove_files:
-#     os.remove(model_path)
-#     os.remove(rank_path)
-#
-#   # Load Data
-#   data = get_data(data_path)
-#   x = data[:,2:]
-#   if generate_label:
-#     f_arb = np.random.rand(x.shape[1],1).astype('float32')
-#     y_arb = x.dot(f_arb)
-#     label_train = np.sign(y_arb - np.mean(y_arb))
-#   else:
-#     label_train = (data[:,0] - 0.5)*2
-#   return x, label_train, ranks
-#
-#
-# def save_data_rank_format(data_path, data, label, max_qid=2, delete_exist=True):
-#   if os.path.exists(data_path):
-#     if delete_exist:
-#       os.remove(data_path)
-#     else:
-#       print('Data exists!')
-#       return
-#   qids = np.sort(np.random.randint(1,max_qid,len(label)))
-#   with open(data_path, 'a') as f:
-#     for i in range(len(label)):
-#         qid = np.random.randint(1,max_qid)
-#         row = [str(label[i]),'qid:%1d' % qids[i]] + ['%1d:%05f' % (i+1,val) for i,val in enumerate(data[i])] + ['\n']
-#         f.write(' '.join(row))
-#   return
