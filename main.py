@@ -14,66 +14,66 @@ from matplotlib import pyplot as plt
 from matplotlib import style; style.use('ggplot')
 
 
-# Consistent with Tokyo 2018/19 plots
-NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
-TRAIN_SIZES = NUM_LABELS + 500
-TEST_SIZE   = 1000
-NUM_TRIALS  = len(NUM_LABELS)
-NUM_REPEATS = 10
-
-# # To compare with Tokyo 2018 table
-# NUM_LABELS  = np.array([500])
+# # Consistent with Tokyo 2018/19 plots
+# NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
 # TRAIN_SIZES = NUM_LABELS + 500
 # TEST_SIZE   = 1000
 # NUM_TRIALS  = len(NUM_LABELS)
 # NUM_REPEATS = 10
 
+# To compare with Tokyo 2019 table
+NUM_LABELS  = np.array([200])
+TRAIN_SIZES = NUM_LABELS + 500
+TEST_SIZE   = 500
+NUM_TRIALS  = len(NUM_LABELS)
+NUM_REPEATS = 10
+
 
 def cal_uncertainty(y, W):
-  """
-  Computes uncertaintity matrix epsilon
-  Step 6
-  Equation 7
-  """
-  # Returns uncertaintity matrix \xi
-  pair_dist = pairwise_distance(y)
-  weighted_distance = [W_k * pair_dist for W_k in W]
-  return np.sum(weighted_distance, axis=0)
-  # normalized_weighted_distance = [wd/np.sum(wd) for wd in weighted_distance]
-  # return np.sum(normalized_weighted_distance, 0)
+    """
+    Computes uncertaintity matrix epsilon
+    Step 6
+    Equation 7
+    """
+    # Returns uncertaintity matrix \xi
+    pair_dist = pairwise_distance(y)
+    weighted_distance = [W_k * pair_dist for W_k in W]
+    # return np.sum(weighted_distance, axis=0)
+    normalized_weighted_distance = [wd/np.sum(wd) for wd in weighted_distance]
+    return np.sum(normalized_weighted_distance, 0)
 
 
 def pairwise_distance(y):
-  """ Helper function used in cal_uncertainty """
-  # Calculate the pairwise exponential distance matrix of instances
-  # pairwise_distance_{ij} = \exp(y_j - y_i)
-  y = y / (np.max(y) + 1e-12)
-  if len(y.shape) == 1:
-    y = np.expand_dims(y, 1)
-  if y.shape[0] == 1:
-    y = y.T
-  return np.exp(-y).dot(np.exp(y).T)
+    """ Helper function used in cal_uncertainty """
+    # Calculate the pairwise exponential distance matrix of instances
+    # pairwise_distance_{ij} = \exp(y_j - y_i)
+    y = y / (np.max(y) + 1e-12)
+    if len(y.shape) == 1:
+        y = np.expand_dims(y, 1)
+    if y.shape[0] == 1:
+        y = y.T
+    return np.exp(-y).dot(np.exp(y).T)
 
 
 def cal_weights(xi):
-  """
-  Computes importance (weight) of each instance, wi
-  Step 7
-  Equation 8
-  """
-  return np.sum(xi - xi.T, axis=1)
+    """
+    Computes importance (weight) of each instance, wi
+    Step 7
+    Equation 8
+    """
+    return np.sum(xi - xi.T, axis=1)
 
 
 def cal_alpha(y, xi):
-  """
-  Calculates the weight of classifier i, alpha
-  Step 12
-  """
-  y_p = (y > 0).astype(float).reshape(-1, 1)
-  y_n = (y < 0).astype(float).reshape(-1, 1)
-  I_1 = xi * y_p.dot(y_n.T)
-  I_2 = xi * y_n.dot(y_p.T)
-  return 0.5 * np.log(np.sum(I_1) / np.sum(I_2))
+    """
+    Calculates the weight of classifier i, alpha
+    Step 12
+    """
+    y_p = (y > 0).astype(float).reshape(-1, 1)
+    y_n = (y < 0).astype(float).reshape(-1, 1)
+    I_1 = xi * y_p.dot(y_n.T)
+    I_2 = xi * y_n.dot(y_p.T)
+    return 0.5 * np.log(np.sum(I_1) / np.sum(I_2))
 
 
 ################################################################################
@@ -403,10 +403,12 @@ def data_size_experiment(X, y, rank, random_state=None, verbose=False):
             # Fill in results as (train error, test error)
             svm_arr[i, j, 0], svm_arr[i, j, 1]   = svm_lambdaboost(X_train, y_train,
                                                                    X_test, y_test,
-                                                                   W, T=20, verbose=verbose)
+                                                                   W, T=20, sample_prop=4,
+                                                                   verbose=verbose)
             tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
                                                                     X_test, y_test,
-                                                                    W, T=20, verbose=verbose)
+                                                                    W, T=20, sample_prop=4,
+                                                                    verbose=verbose)
 
             print(NUM_REPEATS * i + j + 1)
 

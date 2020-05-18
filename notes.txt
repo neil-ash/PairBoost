@@ -616,6 +616,15 @@ Papers read:
         - Cannot be wrong, can say idk
         - Shows not intractable wrt num labels
 
+- Learning from noisy similar and dissimilar data (Tokyo 2020)
+    - Similar to other Tokyo papers, with focus on noise in real-world data
+
+- Binary classification from positive-confidence data (Tokyo 2018)
+    - Shows how to learn binary classifier given only positive data along with confidence scores
+
+- Learning to Rank: From Pairwise Approach to Listwise Approach (Microsoft 2007)
+    - Overview of LTR development
+
 ------------------------------------------------------------------------------------------------------------------------
 Meeting notes 4-20:
 - Run experiments with number of labeled points (m) varying
@@ -695,12 +704,73 @@ To do Wednesday:
     - Already fixed, experiment more
 - Run on adult and susy datasets
     - For more iterations
+- Consider running experiment on subsets of data
+    ex) m = 1600 is largest, m = 800 has all samples from 1600, etc.
+- Compare 500-500-100 comparisons-unlabeled-testing to accuracies in Tokyo tables
+- Compare quality of generated W by ranks vs actual labels
 
+------------------------------------------------------------------------------------------------------------------------
 
+Pairwise comparisons:
+- Hopkins et al., 2019
+    - The power of comparisons for actively learning linear classifiers
+    - UCSD 2019
+- Bao et al., 2018
+    - Classification from pairwise similarity and unlabeled data
+    - Tokyo 2018
+- Dan et al., 2020
+    - Learning from noisy similar and dissimilar data
+- Ishida et al.,2018
+    - Binary classification from positive-confidence data
+- Shimada et al., 2019
+    - Classification  from  pairwise  similarities/dissimilarities and unlabeled data via empirical risk minimization
+    - Tokyo 2019 (first)
+- Xu et al., 2017, 2018
+    - Noise-tolerant interactive learning using pairwise comparisons
+        - CMU 2017
+    - Nonparametric regression with comparisons: Escaping the curse of dimensionality with ordinal information
+        - CMU 2019
 
+Learning-to-rank:
+- Cao et al. (2007)
+    - Learning to rank: from pairwise approach to listwise approach
+- Burges(2010)
+    - From ranknet to lambdarank to lambdamart: An overview
+- Lambdamart (Chapelle and Chang, 2011)
+    - Yahoo! learning to rank challenge overview
 
+To do:
+- Read/take notes on:
+    - Learning from noisy similar and dissimilar data (Tokyo 2020)
+    - Binary classification from positive-confidence data (Tokyo 2018)
+    - Learning to Rank: From Pairwise Approach to Listwise Approach (Microsoft 2017)
 
+------------------------------------------------------------------------------------------------------------------------
+5-18 Meeting Prep
 
+I can do:
+- Fix algorithm psuedocode in overleaf
+    - Also add to/fix algorithm explanation
+    - Include derivation??
+- Write broader impact section
+- Experiments:
+    - How accurate is the model learned with our algorithm compared with a simple binary classification when labeled data is available.
+        - Done for 11 datasets in Tokyo paper
+        - Also for KNN, linear SVM, random forest, xgboost
+    - What is the effect of total number of data and total number of pairwise comparisons in the accuracy?
+        - Done for 3 datasets in Tokyo paper (see plots)
+        - QUESTION ABOUT FLIPPING
+    - How our algorithm is compared with state-of-the-art algorithms in terms of accuracy?
+        - Done for 3 datasets in Tokyo paper (see plots)
+        - Can easily do for other datasets/data sizes for fair comparison
+
+Other:
+- Should include more than just adult/synthetic dataset
+- Flipping prediction question
+- Use my implementation over Mohammad's
+- Deal with Microsoft paper with similar content??
+    - Should not have direct quotes from it??
+- Include derivations in paper??
 
 
 
