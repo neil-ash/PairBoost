@@ -29,6 +29,28 @@ NUM_TRIALS  = len(NUM_LABELS)
 NUM_REPEATS = 10
 
 
+################################################################################
+# Mohammad's Code
+################################################################################
+def gen_conf_matrix(y, sigma):
+    """ Generates pairwise comparison matrix W """
+    exp_y = np.exp(sigma * y)
+    n = len(y)
+    W = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i + 1):
+            p_ij, p_ji = cal_probability(exp_y[i], exp_y[j])
+            W[i,j] = p_ij
+            W[j,i] = p_ji
+    return W
+
+
+def cal_probability(y_i, y_j):
+    """ Helper function used in gen_conf_matrix """
+    p_ij = y_i / (y_i + y_j)
+    return p_ij, 1 - p_ij
+
+
 def cal_uncertainty(y, W):
     """
     Computes uncertaintity matrix epsilon

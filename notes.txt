@@ -763,6 +763,9 @@ I can do:
     - How our algorithm is compared with state-of-the-art algorithms in terms of accuracy?
         - Done for 3 datasets in Tokyo paper (see plots)
         - Can easily do for other datasets/data sizes for fair comparison
+- Other potential experiments:
+    - Adding noise
+    - Evaluating performance of W created from ranking vs filled in with 0.5
 
 Other:
 - Should include more than just adult/synthetic dataset
@@ -771,6 +774,21 @@ Other:
 - Deal with Microsoft paper with similar content??
     - Should not have direct quotes from it??
 - Include derivations in paper??
+
+ASK MOHAMMAD IF ON MICROSOFT TEAMS/OTHER TO REACH OUT
+- SU_classification, learn the ranker: Why is rnd_c necessary?
+    - Why subtract x_pair, y_pair?
+    - Interpretation: used to generate pairs on both sides of the diagonal of W
+        - Why no need for pairs with the same labels?
+- ASK: is my method better?
+    - My method: given m comparisons in W matrix, use XGBRegressor to predict the other n - m entries
+- In lambdaboost/SU notebooks: why measure clf performance instead of overall performance?
+- Could also create nonlinear ranker?
+    - Rather than linear SVM
+- Question about predictions flipping
+    - Generally: overly optimistic to take min error?
+    - May not be an issue with change
+
 
 
 
