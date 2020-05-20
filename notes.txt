@@ -775,9 +775,18 @@ Other:
     - Should not have direct quotes from it??
 - Include derivations in paper??
 
-ASK MOHAMMAD IF ON MICROSOFT TEAMS/OTHER TO REACH OUT
+------------------------------------------------------------------------------------------------------------------------
+5-19 Meeting with Mohammad
+
+- Algorithm input
+    - S: unlabeled
+    - P: pairwise
+        - What is y here?
+    - sigma: confidence
+        - Why is this necessary/value other than 1?
 - SU_classification, learn the ranker: Why is rnd_c necessary?
     - Why subtract x_pair, y_pair?
+        - Is this only using dissimilar pairs??
     - Interpretation: used to generate pairs on both sides of the diagonal of W
         - Why no need for pairs with the same labels?
 - ASK: is my method better?
@@ -785,9 +794,16 @@ ASK MOHAMMAD IF ON MICROSOFT TEAMS/OTHER TO REACH OUT
 - In lambdaboost/SU notebooks: why measure clf performance instead of overall performance?
 - Could also create nonlinear ranker?
     - Rather than linear SVM
+- Could also create nonlinear submodels?
+    - ex) decision trees rather than linear SVMs
 - Question about predictions flipping
     - Generally: overly optimistic to take min error?
     - May not be an issue with change
+- Experiments: compare to Tokyo table?
+    - For many datasets
+- Mehrdad: change related works
+    - Do we need three citations for LTR?
+    - How should I change it?
 
 
 

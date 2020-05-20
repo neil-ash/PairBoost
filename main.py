@@ -14,21 +14,6 @@ from matplotlib import pyplot as plt
 from matplotlib import style; style.use('ggplot')
 
 
-# # Consistent with Tokyo 2018/19 plots
-# NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
-# TRAIN_SIZES = NUM_LABELS + 500
-# TEST_SIZE   = 1000
-# NUM_TRIALS  = len(NUM_LABELS)
-# NUM_REPEATS = 10
-
-# To compare with Tokyo 2019 table
-NUM_LABELS  = np.array([200])
-TRAIN_SIZES = NUM_LABELS + 500
-TEST_SIZE   = 500
-NUM_TRIALS  = len(NUM_LABELS)
-NUM_REPEATS = 10
-
-
 ################################################################################
 # Mohammad's Code
 ################################################################################
@@ -144,6 +129,68 @@ def clear_W(W, m):
     return W
 
 
+# def generate_rank_data(X_train, y_train, m):
+#     """ Generates data to train a ranking model with m true labels """
+#
+#     """ Set m instead of m_rel """
+#     # m_rel = int(m * (m - 1) / 2)
+#
+#     # Get indices of upper triangle of nxn matrix
+#     n = y_train.size
+#     idx = np.triu_indices(n, k=1)
+#     idx = np.hstack((idx[0].reshape(-1, 1), idx[1].reshape(-1, 1)))
+#
+#     # Randomly select m index pairs
+#     save_row = np.random.choice(idx.shape[0], size=m, replace=False)
+#     save_idx = idx[save_row]
+#
+#     # Fill in new randomly sampled features and label differences
+#     X_new = np.full(shape=(m, 2 * X_train.shape[1]), fill_value=np.NaN)
+#     y_new = np.full(shape=m, fill_value=np.NaN)
+#     k = 0
+#
+#     for (i,j) in save_idx:
+#         X_new[k] = np.hstack((X_train[i], X_train[j]))
+#         if y_train[i] == y_train[j]:
+#             y_new[k] = 0.5
+#         elif y_train[i] > y_train[j]:
+#             y_new[k] = 1.0
+#         elif y_train[i] < y_train[j]:
+#             y_new[k] = 0.0
+#         k += 1
+#
+#     return X_new, y_new, save_idx
+
+
+# def generate_rank_W(X_train, y_train, m):
+#     """ Generates pairwise comparison matrix W using a learned ranker trained on m true comparisons """
+#
+#     # Get m randomly sampled pairs in W to train with
+#     X_new, y_new, _ = generate_rank_data(X_train, y_train, m)
+#
+#     """ CHANGED TO XGBOOST """
+#     reg = XGBRegressor(max_depth=3, n_estimators=100, objective='reg:squarederror')
+#     # svr = LinearSVR()
+#     reg.fit(X_new, y_new)
+#
+#     # Fill in predicted values of W
+#     n = y_train.size
+#     X_pair = np.full(shape=(n * n, 2 * X_train.shape[1]), fill_value=np.NaN)
+#     k = 0
+#
+#     """ MAY ONLY WANT TO STOP HALFWAY """
+#     for i in range(n):
+#         for j in range(n):
+#             X_pair[k] = np.hstack((X_train[i], X_train[j]))
+#             k += 1
+#
+#     y_pair = reg.predict(X_pair)
+#     y_pair = minmax_scale(y_pair, feature_range=(0, 1))
+#     W = y_pair.reshape(n, n)
+#
+#     return W
+
+
 def generate_rank_data(X_train, y_train, m):
     """ Generates data to train a ranking model with m true labels """
 
@@ -160,50 +207,86 @@ def generate_rank_data(X_train, y_train, m):
     save_idx = idx[save_row]
 
     # Fill in new randomly sampled features and label differences
-    X_new = np.full(shape=(m, 2 * X_train.shape[1]), fill_value=np.NaN)
-    y_new = np.full(shape=m, fill_value=np.NaN)
+    X_new = np.full(shape=(2 * m, 3 * X_train.shape[1]), fill_value=np.NaN)
+    y_new = np.full(shape=2 * m, fill_value=np.NaN)
     k = 0
 
+    # Fill in two-sided ([i, j] and [j, i]) and delta features
+    """ Two sided and delta features may not help much """
     for (i,j) in save_idx:
-        X_new[k] = np.hstack((X_train[i], X_train[j]))
+
+        X_new[k]     = np.hstack((X_train[i], X_train[j], X_train[i] - X_train[j]))
+        X_new[k + 1] = np.hstack((X_train[j], X_train[i], X_train[j] - X_train[i]))
+
         if y_train[i] == y_train[j]:
-            y_new[k] = 0.5
+            y_new[k]     = 0.5
+            y_new[k + 1] = 0.5
+
         elif y_train[i] > y_train[j]:
-            y_new[k] = 1.0
+            y_new[k]     = 1.0
+            y_new[k + 1] = 0.0
+
         elif y_train[i] < y_train[j]:
-            y_new[k] = 0.0
-        k += 1
+            y_new[k]     = 0.0
+            y_new[k + 1] = 1.0
 
-    return X_new, y_new
+        k += 2
+
+    return X_new, y_new, save_idx
 
 
-def generate_rank_W(X_train, y_train, m):
+def generate_rank_W(X_train, y_train, m, rounded):
     """ Generates pairwise comparison matrix W using a learned ranker trained on m true comparisons """
 
     # Get m randomly sampled pairs in W to train with
-    X_new, y_new = generate_rank_data(X_train, y_train, m)
+    X_new, y_new, save_idx = generate_rank_data(X_train, y_train, m)
 
-    """ CHANGED TO XGBOOST """
-    svr = XGBRegressor(max_depth=3, n_estimators=100, objective='reg:squarederror')
-    # svr = LinearSVR()
-    svr.fit(X_new, y_new)
+    # Fit regressor on given pairwise comparisons
+    """ Change max_depth? """
+    reg = XGBRegressor(max_depth=5, n_estimators=100, objective='reg:squarederror')
+    reg.fit(X_new, y_new)
 
-    # Fill in predicted values of W
+    # Set up features on remaining entries in W
     n = y_train.size
-    X_pair = np.full(shape=(n * n, 2 * X_train.shape[1]), fill_value=np.NaN)
+    X_pair = np.full(shape=(int((n * (n - 1)) / 2), 3 * X_train.shape[1]), fill_value=np.NaN)
     k = 0
 
-    """ MAY ONLY WANT TO STOP HALFWAY """
+    # Fill in features for upper triangle of W
+    """ Stopped halfway (upper triangle only) """
     for i in range(n):
-        for j in range(n):
-            X_pair[k] = np.hstack((X_train[i], X_train[j]))
+        for j in range(i + 1, n):
+            X_pair[k] = np.hstack((X_train[i], X_train[j], X_train[i] - X_train[j]))
             k += 1
 
-    y_pair = svr.predict(X_pair)
+    # Make and scale (since probabilities) predictions on upper triangle of W
+    y_pair = reg.predict(X_pair)
     y_pair = minmax_scale(y_pair, feature_range=(0, 1))
-    W = y_pair.reshape(n, n)
 
-    return W
+    # Fill in W symmetrically
+    W = np.full(shape=(n, n), fill_value=np.NaN)
+    k = 0
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            W[i, j] = y_pair[k]
+            W[j, i] = 1 - y_pair[k]
+            k += 1
+
+    # Fill in diagonal as 0.5
+    W[np.diag_indices(W.shape[0])] = 0.5
+
+    # Fill in known entries in W symmetrically
+    k = 0
+    for (i, j) in save_idx:
+        W[i, j] = y_new[k]
+        W[j, i] = 1 - y_new[k]
+        k += 1
+
+    # Return W rounded to nearest 0.5 if rounded
+    if rounded:
+        return np.round(W * 2) / 2
+    else:
+        return W
 
 
 def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, random_seed=None, verbose=True):
@@ -279,11 +362,11 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, ra
         if verbose:
             if t == 2:
                 print('t\tTrain\t\tTest')
-            print('%d\t%.3f\t\t%.3f' %(t - 1,
+            print('%d\t%.2f\t\t%.2f' %(t - 1,
                                        accuracy_score(y_train, y_train_pred),
                                        accuracy_score(y_test, y_test_pred)))
             if alpha_t < 0:
-                print('Alpha %.3f, terminated' % alpha_t)
+                print('Alpha %.2f, terminated' % alpha_t)
 
     if verbose:
         print('Done!')
@@ -294,8 +377,10 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, ra
     """ CHANGED """
     # # Return final classifier parameters, weight of each submodel
     # return f_coefficient, f_intercept, alpha
-    return 1 - accuracy_score(y_train, y_train_pred), 1 - accuracy_score(y_test, y_test_pred)
 
+    acc_train = accuracy_score(y_train, y_train_pred)
+    acc_test  =  accuracy_score(y_test, y_test_pred)
+    return min(acc_train, 1 - acc_train), min(acc_test, 1 - acc_test)
 
 def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, max_depth=5, sample_prop=2, random_seed=None,
                     verbose=True):
@@ -373,11 +458,11 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, max_depth=5, sam
         if verbose:
             if t == 2:
                 print('t\tTrain\t\tTest')
-            print('%d\t%.3f\t\t%.3f' %(t - 1,
+            print('%d\t%.2f\t\t%.2f' %(t - 1,
                                        accuracy_score(y_train, y_train_pred),
                                        accuracy_score(y_test, y_test_pred)))
             if alpha_t < 0:
-                print('Alpha %.3f, terminated' % alpha_t)
+                print('Alpha %.2f, terminated' % alpha_t)
 
     if verbose:
         print('Done!')
@@ -385,11 +470,29 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, max_depth=5, sam
     """ CHANGED """
     # # Return subtrees and weights for each
     # return f, alpha
-    return 1 - accuracy_score(y_train, y_train_pred), 1 - accuracy_score(y_test, y_test_pred)
+
+    acc_train = accuracy_score(y_train, y_train_pred)
+    acc_test  =  accuracy_score(y_test, y_test_pred)
+    return min(acc_train, 1 - acc_train), min(acc_test, 1 - acc_test)
 
 
-def data_size_experiment(X, y, rank, random_state=None, verbose=False):
+def data_size_experiment(X, y, rank, rounded, plots_or_table='table', random_state=None, verbose=False):
     """ Run experiments modifying training data size and number of labels """
+
+    if plots_or_table == 'table':
+        # To compare with Tokyo 2019 table
+        NUM_LABELS  = np.array([200])
+        TRAIN_SIZES = NUM_LABELS + 500
+        TEST_SIZE   = 500
+        NUM_TRIALS  = len(NUM_LABELS)
+        NUM_REPEATS = 10
+    elif plots_or_table == 'plots':
+        # To compare with Tokyo 2018/19 plots
+        NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
+        TRAIN_SIZES = NUM_LABELS + 500
+        TEST_SIZE   = 1000
+        NUM_TRIALS  = len(NUM_LABELS)
+        NUM_REPEATS = 10
 
     svm_arr  = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
     tree_arr = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
@@ -414,7 +517,7 @@ def data_size_experiment(X, y, rank, random_state=None, verbose=False):
 
         if rank:
             # Generate W from ranker
-            W = generate_rank_W(X_train, y_train, NUM_LABELS[i])
+            W = generate_rank_W(X_train, y_train, NUM_LABELS[i], rounded)
         else:
             # Use partially filled in W pairwise comparison matrix
             W = generate_W(y_train)
@@ -466,6 +569,19 @@ def plot_err(arr, dname, mname, save=False, group='median'):
     return None
 
 
+def table_results(svm_arr, tree_arr):
+
+    svm_arr  = 1 - svm_arr
+    tree_arr = 1 - tree_arr
+
+    print('Performance on test set:\n')
+    print("\tacc\tstd")
+    print("SVM: \t%.2f\t%.2f" %  (np.mean(svm_arr[:, :, 1]),  np.std(svm_arr[:, :, 1])))
+    print("Tree: \t%.2f\t%.2f" % (np.mean(tree_arr[:, :, 1]), np.std(tree_arr[:, :, 1])))
+
+    return None
+
+
 def baselines(X_train, y_train, X_test, y_test):
     """ Performance baselines """
 
@@ -491,8 +607,8 @@ def baselines(X_train, y_train, X_test, y_test):
     xgb = XGBClassifier(n_estimators=25, max_depth=3)
     xgb.fit(X_train, y_train)
 
-    print('Guess Majority:\t %.3f' % maj)
-    print('KNN:\t\t %.3f\nLinear SVM:\t %.3f\nRandom Forest:\t %.3f\nXGBoost:\t %.3f'
+    print('Guess Majority:\t %.2f' % maj)
+    print('KNN:\t\t %.2f\nLinear SVM:\t %.2f\nRandom Forest:\t %.2f\nXGBoost:\t %.2f'
           % (accuracy_score(y_test, knn.predict(X_test)),
              accuracy_score(y_test, svm.predict(X_test)),
              accuracy_score(y_test, rf.predict(X_test)),
