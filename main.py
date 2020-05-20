@@ -129,68 +129,6 @@ def clear_W(W, m):
     return W
 
 
-# def generate_rank_data(X_train, y_train, m):
-#     """ Generates data to train a ranking model with m true labels """
-#
-#     """ Set m instead of m_rel """
-#     # m_rel = int(m * (m - 1) / 2)
-#
-#     # Get indices of upper triangle of nxn matrix
-#     n = y_train.size
-#     idx = np.triu_indices(n, k=1)
-#     idx = np.hstack((idx[0].reshape(-1, 1), idx[1].reshape(-1, 1)))
-#
-#     # Randomly select m index pairs
-#     save_row = np.random.choice(idx.shape[0], size=m, replace=False)
-#     save_idx = idx[save_row]
-#
-#     # Fill in new randomly sampled features and label differences
-#     X_new = np.full(shape=(m, 2 * X_train.shape[1]), fill_value=np.NaN)
-#     y_new = np.full(shape=m, fill_value=np.NaN)
-#     k = 0
-#
-#     for (i,j) in save_idx:
-#         X_new[k] = np.hstack((X_train[i], X_train[j]))
-#         if y_train[i] == y_train[j]:
-#             y_new[k] = 0.5
-#         elif y_train[i] > y_train[j]:
-#             y_new[k] = 1.0
-#         elif y_train[i] < y_train[j]:
-#             y_new[k] = 0.0
-#         k += 1
-#
-#     return X_new, y_new, save_idx
-
-
-# def generate_rank_W(X_train, y_train, m):
-#     """ Generates pairwise comparison matrix W using a learned ranker trained on m true comparisons """
-#
-#     # Get m randomly sampled pairs in W to train with
-#     X_new, y_new, _ = generate_rank_data(X_train, y_train, m)
-#
-#     """ CHANGED TO XGBOOST """
-#     reg = XGBRegressor(max_depth=3, n_estimators=100, objective='reg:squarederror')
-#     # svr = LinearSVR()
-#     reg.fit(X_new, y_new)
-#
-#     # Fill in predicted values of W
-#     n = y_train.size
-#     X_pair = np.full(shape=(n * n, 2 * X_train.shape[1]), fill_value=np.NaN)
-#     k = 0
-#
-#     """ MAY ONLY WANT TO STOP HALFWAY """
-#     for i in range(n):
-#         for j in range(n):
-#             X_pair[k] = np.hstack((X_train[i], X_train[j]))
-#             k += 1
-#
-#     y_pair = reg.predict(X_pair)
-#     y_pair = minmax_scale(y_pair, feature_range=(0, 1))
-#     W = y_pair.reshape(n, n)
-#
-#     return W
-
-
 def generate_rank_data(X_train, y_train, m):
     """ Generates data to train a ranking model with m true labels """
 
