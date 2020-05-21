@@ -805,9 +805,30 @@ Other:
     - Do we need three citations for LTR?
     - How should I change it?
 
+------------------------------------------------------------------------------------------------------------------------
+5-20
 
+Questions:
+- Boosting often makes performance worse with limited data
+    - Could stop early/choose t value with best performance?
+- How to setup experiment?
+    - Two sources of variability:
+        - Model with fixed subset of data
+        - Changing subsets of data
 
+To do:
+- Setup to include 50 pairs
+    - "if table"
+    - Fix table_results function
+- Fix hyperparameters
+    - Consistent everywhere
+- Return min error of subtree
+- Set random_seed for sampling of pairs
 
+NEXT TIME:
+- UPLOAD TO GITHUB
+- Review code for bugs
+- Run table experiments
 
 
 

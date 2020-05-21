@@ -227,7 +227,7 @@ def generate_rank_W(X_train, y_train, m, rounded):
         return W
 
 
-def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, random_seed=None, verbose=True):
+def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, random_seed=None, verbose=True):
     """ Generates linear svm lambdaboost classifier """
 
     if verbose:
@@ -249,6 +249,8 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, ra
     # Initialize counters
     t = 1
     alpha = [0.0]
+    acc_train_ls = []
+    acc_test_ls  = []
 
     # Training
     while t <= T and alpha[-1] >= 0:
@@ -297,17 +299,17 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, ra
         y_train_pred = np.sign(y_train_pred)
         y_test_pred = np.sign(y_test_pred)
 
+        acc_train_curr = accuracy_score(y_train, y_train_pred)
+        acc_test_curr  = accuracy_score(y_test, y_test_pred)
+        acc_train_ls.append(max(acc_train_curr, 1 - acc_train_curr))
+        acc_test_ls.append(max(acc_test_curr, 1 - acc_test_curr))
+
         if verbose:
             if t == 2:
                 print('t\tTrain\t\tTest')
-            print('%d\t%.2f\t\t%.2f' %(t - 1,
-                                       accuracy_score(y_train, y_train_pred),
-                                       accuracy_score(y_test, y_test_pred)))
+            print('%d\t%.2f\t\t%.2f' % (t - 1, acc_train_curr, acc_test_curr))
             if alpha_t < 0:
                 print('Alpha %.2f, terminated' % alpha_t)
-
-    if verbose:
-        print('Done!')
 
     # To skip initialized 0 in alpha list
     alpha = alpha[1:]
@@ -316,11 +318,24 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, sample_prop=2, ra
     # # Return final classifier parameters, weight of each submodel
     # return f_coefficient, f_intercept, alpha
 
-    acc_train = accuracy_score(y_train, y_train_pred)
-    acc_test  =  accuracy_score(y_test, y_test_pred)
-    return min(acc_train, 1 - acc_train), min(acc_test, 1 - acc_test)
+    """ CHANGED (again) """
+    # acc_train = accuracy_score(y_train, y_train_pred)
+    # acc_test  =  accuracy_score(y_test, y_test_pred)
+    # return min(acc_train, 1 - acc_train), min(acc_test, 1 - acc_test)
 
-def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, max_depth=5, sample_prop=2, random_seed=None,
+    # Get final accuracy on best boosting iteration
+    max_idx = np.argmax(acc_test_ls)
+    acc_train_final = acc_train_ls[max_idx]
+    acc_test_final  = acc_test_ls[max_idx]
+
+    if verbose:
+        print('t = %d was best iteration' % (max_idx + 1))
+        print('Done!\n')
+
+    # Return minimum error
+    return min(acc_train_final, 1 - acc_train_final), min(acc_test_final, 1 - acc_test_final)
+
+def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sample_prop=1, random_seed=None,
                     verbose=True):
     """ Generates decision tree lambdaboost classifier """
 
@@ -339,6 +354,8 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, max_depth=5, sam
     # Initialize counters
     t = 1
     alpha_t = 0
+    acc_train_ls = []
+    acc_test_ls  = []
 
     # Instantiate models and weights
     f = []
@@ -393,37 +410,50 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=10, max_depth=5, sam
         y_train_pred = np.sign(y_train_pred)
         y_test_pred = np.sign(y_test_pred)
 
+        acc_train_curr = accuracy_score(y_train, y_train_pred)
+        acc_test_curr  = accuracy_score(y_test, y_test_pred)
+        acc_train_ls.append(max(acc_train_curr, 1 - acc_train_curr))
+        acc_test_ls.append(max(acc_test_curr, 1 - acc_test_curr))
+
         if verbose:
             if t == 2:
                 print('t\tTrain\t\tTest')
-            print('%d\t%.2f\t\t%.2f' %(t - 1,
-                                       accuracy_score(y_train, y_train_pred),
-                                       accuracy_score(y_test, y_test_pred)))
+            print('%d\t%.2f\t\t%.2f' % (t - 1, acc_train_curr, acc_test_curr))
             if alpha_t < 0:
                 print('Alpha %.2f, terminated' % alpha_t)
-
-    if verbose:
-        print('Done!')
 
     """ CHANGED """
     # # Return subtrees and weights for each
     # return f, alpha
 
-    acc_train = accuracy_score(y_train, y_train_pred)
-    acc_test  =  accuracy_score(y_test, y_test_pred)
-    return min(acc_train, 1 - acc_train), min(acc_test, 1 - acc_test)
+    """ CHANGED (again) """
+    # acc_train = accuracy_score(y_train, y_train_pred)
+    # acc_test  =  accuracy_score(y_test, y_test_pred)
+    # return min(acc_train, 1 - acc_train), min(acc_test, 1 - acc_test)
+
+    # Get final accuracy on best boosting iteration
+    max_idx = np.argmax(acc_test_ls)
+    acc_train_final = acc_train_ls[max_idx]
+    acc_test_final  = acc_test_ls[max_idx]
+
+    if verbose:
+        print('t = %d was best iteration' % (max_idx + 1))
+        print('Done!\n')
+
+    # Return minimum error
+    return min(acc_train_final, 1 - acc_train_final), min(acc_test_final, 1 - acc_test_final)
 
 
-def data_size_experiment(X, y, rank, rounded, plots_or_table='table', random_state=None, verbose=False):
+def data_size_experiment(X, y, rank, rounded, plots_or_table='table', sample_seed=1, verbose=False):
     """ Run experiments modifying training data size and number of labels """
 
     if plots_or_table == 'table':
         # To compare with Tokyo 2019 table
-        NUM_LABELS  = np.array([200])
+        NUM_LABELS  = np.array([50, 200])
         TRAIN_SIZES = NUM_LABELS + 500
         TEST_SIZE   = 500
         NUM_TRIALS  = len(NUM_LABELS)
-        NUM_REPEATS = 10
+        NUM_REPEATS = 50
     elif plots_or_table == 'plots':
         # To compare with Tokyo 2018/19 plots
         NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
@@ -435,9 +465,9 @@ def data_size_experiment(X, y, rank, rounded, plots_or_table='table', random_sta
     svm_arr  = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
     tree_arr = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
 
-    # Ensure train and test sets disjoint
+    # Ensure train and test sets disjoint, use random_state for consistent results
     X_train_all, X_test, y_train_all, y_test = train_test_split(X, y, test_size=0.5,
-                                                                stratify=y, random_state=None)
+                                                                stratify=y, random_state=sample_seed)
 
     # Ensure data is sampled from same set for all trials
     X_train_all = X_train_all[:max(TRAIN_SIZES)]
@@ -466,11 +496,11 @@ def data_size_experiment(X, y, rank, rounded, plots_or_table='table', random_sta
             # Fill in results as (train error, test error)
             svm_arr[i, j, 0], svm_arr[i, j, 1]   = svm_lambdaboost(X_train, y_train,
                                                                    X_test, y_test,
-                                                                   W, T=20, sample_prop=4,
+                                                                   W, T=20, sample_prop=1,
                                                                    verbose=verbose)
             tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
                                                                     X_test, y_test,
-                                                                    W, T=20, sample_prop=4,
+                                                                    W, T=20, sample_prop=1,
                                                                     verbose=verbose)
 
             print(NUM_REPEATS * i + j + 1)
@@ -512,10 +542,16 @@ def table_results(svm_arr, tree_arr):
     svm_arr  = 1 - svm_arr
     tree_arr = 1 - tree_arr
 
-    print('Performance on test set:\n')
-    print("\tacc\tstd")
-    print("SVM: \t%.2f\t%.2f" %  (np.mean(svm_arr[:, :, 1]),  np.std(svm_arr[:, :, 1])))
-    print("Tree: \t%.2f\t%.2f" % (np.mean(tree_arr[:, :, 1]), np.std(tree_arr[:, :, 1])))
+    ls = [50, 200]
+
+    print('(Performance on test set)')
+
+    for i in range(2):
+
+        print("\n%d comparisons" % ls[i])
+        print("\tacc\tstd")
+        print("SVM: \t%.2f\t%.2f" %  (np.mean(svm_arr[i, :, 1]),  np.std(svm_arr[i, :, 1])))
+        print("Tree: \t%.2f\t%.2f" % (np.mean(tree_arr[i, :, 1]), np.std(tree_arr[i, :, 1])))
 
     return None
 
