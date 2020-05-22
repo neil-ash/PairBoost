@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import subprocess as sp
 from sklearn.preprocessing import minmax_scale
+from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from sklearn.svm import LinearSVC, LinearSVR
 from sklearn.tree import DecisionTreeClassifier
@@ -80,7 +81,7 @@ def cal_alpha(y, xi):
     y_n = (y < 0).astype(float).reshape(-1, 1)
     I_1 = xi * y_p.dot(y_n.T)
     I_2 = xi * y_n.dot(y_p.T)
-    return 0.5 * np.log(np.sum(I_1) / np.sum(I_2))
+    return 0.5 * np.log(np.sum(I_1) / (np.sum(I_2) + 1e-6))
 
 
 ################################################################################
@@ -104,7 +105,7 @@ def generate_W(y_train):
     return W
 
 
-def clear_W(W, m):
+def clear_W(W, m, random_seed=1):
     """ Replace entries in W with 0.5 to get m total labels """
 
     # Get indices of upper triangle of nxn matrix
@@ -118,7 +119,8 @@ def clear_W(W, m):
     d_rel = int(n_rel - m_rel)
 
     # Randomly select some index pairs
-    rm_row = np.random.choice(idx.shape[0], size=d_rel, replace=False)
+    r = np.random.RandomState(random_seed)
+    rm_row = r.choice(idx.shape[0], size=d_rel, replace=False)
     rm_idx = idx[rm_row]
 
     # Clear out selected elements symmetrically across diagonal
@@ -129,7 +131,7 @@ def clear_W(W, m):
     return W
 
 
-def generate_rank_data(X_train, y_train, m):
+def generate_rank_data(X_train, y_train, m, random_seed=1):
     """ Generates data to train a ranking model with m true labels """
 
     """ Set m instead of m_rel """
@@ -140,8 +142,9 @@ def generate_rank_data(X_train, y_train, m):
     idx = np.triu_indices(n, k=1)
     idx = np.hstack((idx[0].reshape(-1, 1), idx[1].reshape(-1, 1)))
 
-    # Randomly select m index pairs
-    save_row = np.random.choice(idx.shape[0], size=m, replace=False)
+    # Randomly select m index pairs using reproducible seed
+    r = np.random.RandomState(random_seed)
+    save_row = r.choice(idx.shape[0], size=m, replace=False)
     save_idx = idx[save_row]
 
     # Fill in new randomly sampled features and label differences
@@ -173,15 +176,15 @@ def generate_rank_data(X_train, y_train, m):
     return X_new, y_new, save_idx
 
 
-def generate_rank_W(X_train, y_train, m, rounded):
+def generate_rank_W(X_train, y_train, m, rounded, random_state=1):
     """ Generates pairwise comparison matrix W using a learned ranker trained on m true comparisons """
 
     # Get m randomly sampled pairs in W to train with
-    X_new, y_new, save_idx = generate_rank_data(X_train, y_train, m)
+    X_new, y_new, save_idx = generate_rank_data(X_train, y_train, m, random_seed=random_state)
 
     # Fit regressor on given pairwise comparisons
     """ Change max_depth? """
-    reg = XGBRegressor(max_depth=5, n_estimators=100, objective='reg:squarederror')
+    reg = XGBRegressor(max_depth=5, n_estimators=100, objective='reg:squarederror', random_state=random_state)
     reg.fit(X_new, y_new)
 
     # Set up features on remaining entries in W
@@ -197,17 +200,17 @@ def generate_rank_W(X_train, y_train, m, rounded):
             k += 1
 
     # Make and scale (since probabilities) predictions on upper triangle of W
-    y_pair = reg.predict(X_pair)
-    y_pair = minmax_scale(y_pair, feature_range=(0, 1))
+    y_pred = reg.predict(X_pair)
+    y_pred = minmax_scale(y_pred, feature_range=(0, 1))
 
-    # Fill in W symmetrically
+    # Fill in W symmetrically with predictions
     W = np.full(shape=(n, n), fill_value=np.NaN)
     k = 0
 
     for i in range(n):
         for j in range(i + 1, n):
-            W[i, j] = y_pair[k]
-            W[j, i] = 1 - y_pair[k]
+            W[i, j] = y_pred[k]
+            W[j, i] = 1 - y_pred[k]
             k += 1
 
     # Fill in diagonal as 0.5
@@ -285,6 +288,11 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, ra
         # Step 12: compute weight of current classifier
         alpha_t = cal_alpha(y_pred, epsilon)
 
+        # Make sure alpha is valid
+        if np.isnan(alpha_t) or np.isinf(alpha_t):
+            print('Alpha invalid, terminated')
+            break
+
         # Step 13: update final classifier
         f_coefficient += alpha_t * clf.coef_.ravel()
         f_intercept += alpha_t * clf.intercept_
@@ -329,11 +337,10 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, ra
     acc_test_final  = acc_test_ls[max_idx]
 
     if verbose:
-        print('t = %d was best iteration' % (max_idx + 1))
-        print('Done!\n')
+        print('t = %d was best iteration\n' % (max_idx + 1))
 
-    # Return minimum error
-    return min(acc_train_final, 1 - acc_train_final), min(acc_test_final, 1 - acc_test_final)
+    # Return minimum error (1 - max accuracy)
+    return 1 - acc_train_final, 1 - acc_test_final
 
 def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sample_prop=1, random_seed=None,
                     verbose=True):
@@ -397,6 +404,11 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sam
         # Step 12: compute weight of current classifier
         alpha_t = cal_alpha(y_pred, epsilon)
 
+        # Make sure alpha is valid
+        if np.isnan(alpha_t) or np.isinf(alpha_t):
+            print('Alpha invalid, terminated')
+            break
+
         # Step 13: update final classifier
         f.append(clf)
 
@@ -437,23 +449,29 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sam
     acc_test_final  = acc_test_ls[max_idx]
 
     if verbose:
-        print('t = %d was best iteration' % (max_idx + 1))
-        print('Done!\n')
+        print('t = %d was best iteration\n' % (max_idx + 1))
 
-    # Return minimum error
-    return min(acc_train_final, 1 - acc_train_final), min(acc_test_final, 1 - acc_test_final)
+    # Return minimum error (1 - max accuracy)
+    return 1 - acc_train_final, 1 - acc_test_final
 
 
-def data_size_experiment(X, y, rank, rounded, plots_or_table='table', sample_seed=1, verbose=False):
+def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_or_table='table', random_state=1,
+                         verbose=False):
     """ Run experiments modifying training data size and number of labels """
 
     if plots_or_table == 'table':
-        # To compare with Tokyo 2019 table
+        # To compare with Tokyo 2019 table (SDU)
         NUM_LABELS  = np.array([50, 200])
         TRAIN_SIZES = NUM_LABELS + 500
         TEST_SIZE   = 500
         NUM_TRIALS  = len(NUM_LABELS)
         NUM_REPEATS = 50
+        # # To compare with Tokyo 2018 table (SU)
+        # NUM_LABELS  = np.array([500])
+        # TRAIN_SIZES = NUM_LABELS + 500
+        # TEST_SIZE   = 100
+        # NUM_TRIALS  = len(NUM_LABELS)
+        # NUM_REPEATS = 20
     elif plots_or_table == 'plots':
         # To compare with Tokyo 2018/19 plots
         NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
@@ -462,18 +480,16 @@ def data_size_experiment(X, y, rank, rounded, plots_or_table='table', sample_see
         NUM_TRIALS  = len(NUM_LABELS)
         NUM_REPEATS = 10
 
+    # Initialize arrays to record performance
     svm_arr  = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
     tree_arr = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
 
-    # Ensure train and test sets disjoint, use random_state for consistent results
-    X_train_all, X_test, y_train_all, y_test = train_test_split(X, y, test_size=0.5,
-                                                                stratify=y, random_state=sample_seed)
+    # Take random stratified sample from train set and test set of appropriate size
+    X_train_all, _, y_train_all, _ = train_test_split(X_train, y_train, train_size=max(TRAIN_SIZES), stratify=y_train,
+                                                      shuffle=True, random_state=random_state)
 
-    # Ensure data is sampled from same set for all trials
-    X_train_all = X_train_all[:max(TRAIN_SIZES)]
-    y_train_all = y_train_all[:max(TRAIN_SIZES)]
-    X_test  = X_test[:TEST_SIZE]
-    y_test  = y_test[:TEST_SIZE]
+    _, X_test, _, y_test = train_test_split(X_test, y_test, test_size=TEST_SIZE, stratify=y_test,
+                                            shuffle=True, random_state=random_state)
 
     print('Progress:')
 
@@ -485,7 +501,7 @@ def data_size_experiment(X, y, rank, rounded, plots_or_table='table', sample_see
 
         if rank:
             # Generate W from ranker
-            W = generate_rank_W(X_train, y_train, NUM_LABELS[i], rounded)
+            W = generate_rank_W(X_train, y_train, NUM_LABELS[i], rounded, random_state=random_state)
         else:
             # Use partially filled in W pairwise comparison matrix
             W = generate_W(y_train)
@@ -503,7 +519,9 @@ def data_size_experiment(X, y, rank, rounded, plots_or_table='table', sample_see
                                                                     W, T=20, sample_prop=1,
                                                                     verbose=verbose)
 
-            print(NUM_REPEATS * i + j + 1)
+            print('-----------------------------------------------')
+            print('%d / %d complete' % (NUM_REPEATS * i + j + 1, NUM_REPEATS * NUM_TRIALS))
+            print('-----------------------------------------------\n')
 
     return svm_arr, tree_arr
 
@@ -539,8 +557,8 @@ def plot_err(arr, dname, mname, save=False, group='median'):
 
 def table_results(svm_arr, tree_arr):
 
-    svm_arr  = 1 - svm_arr
-    tree_arr = 1 - tree_arr
+    svm_arr  = (1 - svm_arr) * 100
+    tree_arr = (1 - tree_arr) * 100
 
     ls = [50, 200]
 
@@ -550,8 +568,8 @@ def table_results(svm_arr, tree_arr):
 
         print("\n%d comparisons" % ls[i])
         print("\tacc\tstd")
-        print("SVM: \t%.2f\t%.2f" %  (np.mean(svm_arr[i, :, 1]),  np.std(svm_arr[i, :, 1])))
-        print("Tree: \t%.2f\t%.2f" % (np.mean(tree_arr[i, :, 1]), np.std(tree_arr[i, :, 1])))
+        print("SVM: \t%.1f\t%.1f" %  (np.mean(svm_arr[i, :, 1]),  np.std(svm_arr[i, :, 1])))
+        print("Tree: \t%.1f\t%.1f" % (np.mean(tree_arr[i, :, 1]), np.std(tree_arr[i, :, 1])))
 
     return None
 

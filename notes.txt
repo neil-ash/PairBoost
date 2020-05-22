@@ -830,6 +830,13 @@ NEXT TIME:
 - Review code for bugs
 - Run table experiments
 
+------------------------------------------------------------------------------------------------------------------------
+5-21
+
+To do:
+- Include X_train, y_train, X_test, y_test
+
+
 
 
 
