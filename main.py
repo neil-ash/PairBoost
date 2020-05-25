@@ -12,7 +12,7 @@ from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.metrics import accuracy_score
 from matplotlib import pyplot as plt
-from matplotlib import style; style.use('ggplot')
+from matplotlib import style
 
 
 ################################################################################
@@ -47,7 +47,7 @@ def cal_uncertainty(y, W):
     pair_dist = pairwise_distance(y)
     weighted_distance = [W_k * pair_dist for W_k in W]
     # return np.sum(weighted_distance, axis=0)
-    normalized_weighted_distance = [wd/np.sum(wd) for wd in weighted_distance]
+    normalized_weighted_distance = [wd / np.sum(wd) for wd in weighted_distance]
     return np.sum(normalized_weighted_distance, 0)
 
 
@@ -81,7 +81,7 @@ def cal_alpha(y, xi):
     y_n = (y < 0).astype(float).reshape(-1, 1)
     I_1 = xi * y_p.dot(y_n.T)
     I_2 = xi * y_n.dot(y_p.T)
-    return 0.5 * np.log(np.sum(I_1) / (np.sum(I_2) + 1e-6))
+    return 0.5 * np.log((np.sum(I_1) + 1e-6) / (np.sum(I_2) + 1e-6))
 
 
 ################################################################################
@@ -273,7 +273,7 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, ra
 
         # Step 9: create training (sample) data by sampling based on weights
         p_weight = np.abs(weight)
-        p_weight /= (np.sum(p_weight) + 1e-12)
+        p_weight /= np.sum(p_weight)
         sample = np.random.choice(m, size=m*sample_prop, replace=True, p=p_weight)
         X_sample = X_train[sample]
         y_sample = y[sample]
@@ -389,7 +389,7 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sam
 
         # Step 9: create training (sample) data by sampling based on weights
         p_weight = np.abs(weight)
-        p_weight /= (np.sum(p_weight) + 1e-12)
+        p_weight /= np.sum(p_weight)
         sample = np.random.choice(m, size=m*sample_prop, replace=True, p=p_weight)
         X_sample = X_train[sample]
         y_sample = y[sample]
@@ -473,12 +473,19 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
         # NUM_TRIALS  = len(NUM_LABELS)
         # NUM_REPEATS = 20
     elif plots_or_table == 'plots':
-        # To compare with Tokyo 2018/19 plots
+        # To compare with Tokyo 2018/19 nSD plots
         NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
         TRAIN_SIZES = NUM_LABELS + 500
         TEST_SIZE   = 1000
         NUM_TRIALS  = len(NUM_LABELS)
         NUM_REPEATS = 10
+    elif plots_or_table == 'unlabeled':
+        # To compare with Tokyo 2018/19 nU plots
+        NUM_LABELS  = np.array([50, 50, 50, 50, 50, 50])
+        TRAIN_SIZES = NUM_LABELS + np.array([100, 200, 800, 1200, 1600, 2000])
+        TEST_SIZE   = 1000
+        NUM_TRIALS  = len(TRAIN_SIZES)
+        NUM_REPEATS = 50
 
     # Initialize arrays to record performance
     svm_arr  = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
@@ -526,37 +533,59 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
     return svm_arr, tree_arr
 
 
-def plot_err(arr, dname, mname, save=False, group='median'):
+def plot_err(arr, dname, mname, save=False, SD_or_U='SD', scale=1, pltstyle='default'):
     """ Plots performance when modifying training data size and number of labels"""
 
-    x = NUM_LABELS
-    if group == 'median':
-        y = np.median(arr, axis=1)
-    elif group == 'mean':
-        y = np.mean(arr, axis=1)
-    elif group == 'min':
-        y = np.min(arr, axis=1)
+    style.use(pltstyle)
+    plt.rcParams["font.family"] = "Times New Roman"
 
-    plt.rcParams['figure.figsize'] = [8, 4]
+    # (std / sqrt(n)) to calculate standard error, n = 10 trials
+    NUM_REPEATS = 10
+
+    if SD_or_U == 'SD':
+        x = np.array([50, 100, 200, 400, 600, 800, 1600])
+    elif SD_or_U == 'U':
+        x = np.array([100, 200, 800, 1200, 1600, 2000])
+    y = np.mean(arr, axis=1)
+
+    sderr = np.std(arr, axis=1)
+    sderr = sderr / np.sqrt(NUM_REPEATS)
+
+    plt.rcParams['figure.figsize'] = [5, 3]
     title = dname + ' Dataset, ' + mname + ' Model'
 
-    plt.plot(x, y[:, 1])
-    plt.plot(x, y[:, 0])
-    plt.scatter(x, y[:, 1], label='Test')
-    plt.scatter(x, y[:, 0], label='Train')
+    plt.plot(x, y[:, 1], c='C1')
+    plt.fill_between(x, y[:, 1] - (sderr[:, 1] * scale), y[:, 1] + (sderr[:, 1] * scale),
+                 facecolors='C1', alpha=0.5)
+    plt.scatter(x, y[:, 1], label='Test', c='C1')
+
+    plt.plot(x, y[:, 0], c='C0')
+    plt.fill_between(x, y[:, 0] - (sderr[:, 0] * scale), y[:, 0] + (sderr[:, 0] * scale),
+                 facecolors='C0', alpha=0.5)
+    plt.scatter(x, y[:, 0], label='Train', c='C0')
+
     plt.legend()
     plt.title(title)
-    plt.xlabel('m: Number of Labeled Points')
+    if SD_or_U == 'SD':
+        # plt.xlabel('m: Number of Pairwise Comparisons')
+        plt.xlabel('m')
+    elif SD_or_U == 'U':
+        plt.xlabel('n: Number of unlabeled points')
     plt.ylabel('Classification Error')
 
     if save:
-        plt.savefig('plots/' + title + '.png', bbox_inches='tight')
+        plt.savefig('final_plots/' + SD_or_U + '/' + title + '.pdf', bbox_inches='tight')
 
     return None
 
 
 def table_results(svm_arr, tree_arr):
+    """ Nicely print out results from data_size_experiment vs Tokyo plots """
 
+    # (std / sqrt(n)) to calculate standard error, n = 50 trials (NOT 50 or 200 labels)
+    NUM_REPEATS = 50
+
+    # Want accuracy not error
     svm_arr  = (1 - svm_arr) * 100
     tree_arr = (1 - tree_arr) * 100
 
@@ -567,9 +596,9 @@ def table_results(svm_arr, tree_arr):
     for i in range(2):
 
         print("\n%d comparisons" % ls[i])
-        print("\tacc\tstd")
-        print("SVM: \t%.1f\t%.1f" %  (np.mean(svm_arr[i, :, 1]),  np.std(svm_arr[i, :, 1])))
-        print("Tree: \t%.1f\t%.1f" % (np.mean(tree_arr[i, :, 1]), np.std(tree_arr[i, :, 1])))
+        print("\tacc\tsderr")
+        print("SVM: \t%.1f\t%.1f" %  (np.mean(svm_arr[i, :, 1]),  np.std(svm_arr[i, :, 1]) / np.sqrt(NUM_REPEATS)))
+        print("Tree: \t%.1f\t%.1f" % (np.mean(tree_arr[i, :, 1]), np.std(tree_arr[i, :, 1]) / np.sqrt(NUM_REPEATS)))
 
     return None
 

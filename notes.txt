@@ -836,16 +836,45 @@ NEXT TIME:
 To do:
 - Include X_train, y_train, X_test, y_test
 
+Next time:
+- Send results to Mohammad, Mehradad (?)
+- Do plots (?)
+    - Which datasets?
 
+------------------------------------------------------------------------------------------------------------------------
+5-22
 
+To do:
+- SEND RESULTS TO MEHRDAD
+- ADD RESULTS TO PAPER
+- Fix plot function
+    - Include 'shadow'
+- Get plots for:
+    - magic (svm)
+    - magic (tree)
+    - banana (tree) ?
+    - phishing (either) ?
+- Setup experiment for adding unlabeled data
 
+To use:
+- Varying m:
+    - Phishing, Tree
+    - Adult, SVM
 
+------------------------------------------------------------------------------------------------------------------------
+5-24
 
+To do (overall):
+- Tell Mohammad to fix algorithm section (ranker)
+- Bold table entries
+- Cite libsvm, UCI
+- Fix related works
+- Carefully read all NeurIPS guidelines
+- Cleanup code according to NeurIPS github guidelines
+- Write abstract (?)
 
-
-
-
-
+Table Columns:
+Dataset | m | svm | tree | SDDU Squared | SDDU Double Hinge
 
 
 
