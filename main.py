@@ -12,7 +12,6 @@ from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.metrics import accuracy_score
 from matplotlib import pyplot as plt
-from matplotlib import style
 
 
 ################################################################################
@@ -332,7 +331,7 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, ra
     # return min(acc_train, 1 - acc_train), min(acc_test, 1 - acc_test)
 
     # Get final accuracy on best boosting iteration
-    max_idx = np.argmax(acc_test_ls)
+    max_idx = np.argmax(acc_train_ls)
     acc_train_final = acc_train_ls[max_idx]
     acc_test_final  = acc_test_ls[max_idx]
 
@@ -443,8 +442,9 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sam
     # acc_test  =  accuracy_score(y_test, y_test_pred)
     # return min(acc_train, 1 - acc_train), min(acc_test, 1 - acc_test)
 
-    # Get final accuracy on best boosting iteration
-    max_idx = np.argmax(acc_test_ls)
+    # Get final accuracy on best boosting iteration on train set
+    # Do not record best iteration on test set -- would train hyperparameter on test
+    max_idx = np.argmax(acc_train_ls)
     acc_train_final = acc_train_ls[max_idx]
     acc_test_final  = acc_test_ls[max_idx]
 
@@ -476,16 +476,30 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
         # To compare with Tokyo 2018/19 nSD plots
         NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
         TRAIN_SIZES = NUM_LABELS + 500
-        TEST_SIZE   = 1000
+        TEST_SIZE   = 500
         NUM_TRIALS  = len(NUM_LABELS)
         NUM_REPEATS = 10
     elif plots_or_table == 'unlabeled':
         # To compare with Tokyo 2018/19 nU plots
         NUM_LABELS  = np.array([50, 50, 50, 50, 50, 50])
         TRAIN_SIZES = NUM_LABELS + np.array([100, 200, 800, 1200, 1600, 2000])
-        TEST_SIZE   = 1000
+        TEST_SIZE   = 500
         NUM_TRIALS  = len(TRAIN_SIZES)
         NUM_REPEATS = 50
+    elif plots_or_table == 'labeled':
+        NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
+        TRAIN_SIZES = np.array([1000, 1000, 1000, 1000, 1000, 1000, 1000])
+        TEST_SIZE   = 500
+        NUM_TRIALS  = len(TRAIN_SIZES)
+        NUM_REPEATS = 10
+    elif plots_or_table == 'ratio':
+        NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
+        TRAIN_SIZES = 2 * NUM_LABELS
+        TEST_SIZE   = 500
+        NUM_TRIALS  = len(TRAIN_SIZES)
+        NUM_REPEATS = 10
+        # Record intermediate lin SVM acc
+        ls_base = []
 
     # Initialize arrays to record performance
     svm_arr  = np.full(shape=(NUM_TRIALS, NUM_REPEATS, 2), fill_value=np.NaN)
@@ -521,22 +535,39 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
                                                                    X_test, y_test,
                                                                    W, T=20, sample_prop=1,
                                                                    verbose=verbose)
-            tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
-                                                                    X_test, y_test,
-                                                                    W, T=20, sample_prop=1,
-                                                                    verbose=verbose)
+            # tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
+            #                                                         X_test, y_test,
+            #                                                         W, T=20, sample_prop=1,
+            #                                                         verbose=verbose)
 
             print('-----------------------------------------------')
             print('%d / %d complete' % (NUM_REPEATS * i + j + 1, NUM_REPEATS * NUM_TRIALS))
             print('-----------------------------------------------\n')
 
+        if plots_or_table == 'ratio':
+            clf = LinearSVC()
+            clf.fit(X_train, y_train)
+            y_pred = clf.predict(X_test)
+            acc = accuracy_score(y_test, y_pred)
+            print('Linear SVM Accuracy for n = %d: %.3f\n' % (y_train.size, acc))
+            ls_base.append(acc)
+
+    if plots_or_table == 'labeled':
+        clf = LinearSVC()
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+        print('\nLinear SVM Accuracy: %.3f' % accuracy_score(y_test, y_pred))
+
+    if plots_or_table == 'ratio':
+        return svm_arr, tree_arr, 1 - np.array(ls_base)
+
     return svm_arr, tree_arr
 
 
-def plot_err(arr, dname, mname, save=False, SD_or_U='SD', scale=1, pltstyle='default'):
+def plot_err(arr, dname, mname, save=False, SD_or_U='SD', scale=1, pltstyle='seaborn-whitegrid'):
     """ Plots performance when modifying training data size and number of labels"""
 
-    style.use(pltstyle)
+    plt.style.use(pltstyle)
     plt.rcParams["font.family"] = "Times New Roman"
 
     # (std / sqrt(n)) to calculate standard error, n = 10 trials
@@ -564,8 +595,8 @@ def plot_err(arr, dname, mname, save=False, SD_or_U='SD', scale=1, pltstyle='def
                  facecolors='C0', alpha=0.5)
     plt.scatter(x, y[:, 0], label='Train', c='C0')
 
-    plt.legend()
-    plt.title(title)
+    plt.legend(frameon=True ,shadow=True,fancybox=True, framealpha=1.0)
+    # plt.title(title)
     if SD_or_U == 'SD':
         # plt.xlabel('m: Number of Pairwise Comparisons')
         plt.xlabel('m')

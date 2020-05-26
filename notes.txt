@@ -739,6 +739,12 @@ Learning-to-rank:
 - Lambdamart (Chapelle and Chang, 2011)
     - Yahoo! learning to rank challenge overview
 
+Other papers (not yet cited):
+- Pairwise Preference Learning and Ranking
+    - http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.6.7067&rep=rep1&type=pdf
+- Active classification with comparison queries
+    - https://arxiv.org/pdf/1704.03564.pdf
+
 To do:
 - Read/take notes on:
     - Learning from noisy similar and dissimilar data (Tokyo 2020)
@@ -865,7 +871,7 @@ To use:
 5-24
 
 To do (overall):
-- Tell Mohammad to fix algorithm section (ranker)
+- Ask Mohammad to fix algorithm section (ranker)
 - Bold table entries
 - Cite libsvm, UCI
 - Fix related works
@@ -875,6 +881,7 @@ To do (overall):
 
 Table Columns:
 Dataset | m | svm | tree | SDDU Squared | SDDU Double Hinge
+
 
 
 
