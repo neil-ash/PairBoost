@@ -1,11 +1,8 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import os
-import subprocess as sp
 from sklearn.preprocessing import minmax_scale
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
-from sklearn.svm import LinearSVC, LinearSVR
+from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -330,7 +327,8 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, ra
     # acc_test  =  accuracy_score(y_test, y_test_pred)
     # return min(acc_train, 1 - acc_train), min(acc_test, 1 - acc_test)
 
-    # Get final accuracy on best boosting iteration
+    # Get final accuracy on best boosting iteration on train set
+    # Do not record best iteration on test set -- would train hyperparameter on test
     max_idx = np.argmax(acc_train_ls)
     acc_train_final = acc_train_ls[max_idx]
     acc_test_final  = acc_test_ls[max_idx]
@@ -340,6 +338,7 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, ra
 
     # Return minimum error (1 - max accuracy)
     return 1 - acc_train_final, 1 - acc_test_final
+
 
 def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sample_prop=1, random_seed=None,
                     verbose=True):

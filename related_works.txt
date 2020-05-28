@@ -1,0 +1,172 @@
+Papers read:
+- Regression with comparisons: escaping the curse of dimensionality with ordinal information (CMU 2019)
+    - Two regression w/ comparison algorithms:
+        - R^2 Ranking-Regression
+            - Isotonic regression (regression consistent with ranking)
+            - Uses nearest-neighbor
+            - Escapes curse of dimensionality: error rate only depends on num labels and num comparisons, not on
+              dimensionality of features
+        - CLR Comparison linear regression
+            - Converts regression to series of classification problems, used to find weight vector
+    - Experiments:
+        - Synthetic data
+        - Predicting age from photographs
+        - Estimating AirBnB prices
+
+- Noise-tolerant interactive learning using pairwise comparisons (CMU 2017)
+    - Reduces problem of classification given pairwise information to binary search
+    - Frames as active learning with labeling and comparison oracles
+    - Discusses noisy data
+
+- Blog (CMU)
+    - https://blog.ml.cmu.edu/2019/03/29/building-machine-learning-models-via-comparisons/
+    - Summarizes main ideas in two papers above
+
+- Classification from pairwise similarity and unlabeled data (Tokyo 2018)
+    - Learning from similar-unlabeled data
+    - Creates and optimizes loss function for setting
+    - Linear model
+    - I did experiments with these datasets
+
+- Classification from pairwise similarities/dissimilarities and unlabeled data via empirical risk minimization (Tokyo 2019)
+    - Extension of similar-unlabeled (2018 paper) to dissimilar-unlabeled and similar-dissimilar
+    - Dissimilar-unlabeled and similar-dissimilar combined is best performance
+    - Related setup to Tokyo 2018 paper
+
+- Uncoupled regression from pairwise comparison data (Tokyo 2019)
+    - Uncoupled regression: given unlabeled features and labels, don't have correspondence
+    - Solves using pairwise comparisons
+        ex) Point Xi has larger label value than point Xj
+    - Show for linear models, URPC has similar performance as supervised learning
+    - Uses empirical risk minimization (rather than ranking) with two methods:
+        - Risk approximation
+        - Target transformation
+
+- The power of comparisons for actively learning linear classifiers (UCSD 2019)
+    - Hard time following...
+        - Sphere-packing? Caps? Gamma-ball?
+    - Shows active learning requires exponentially fewer samples (with assumptions) when given comparison information
+    - Discusses RPU (reliable and probably useful) model
+        - Cannot be wrong, can say idk
+        - Shows not intractable wrt num labels
+
+- Learning from noisy similar and dissimilar data (Tokyo 2020)
+    - Similar to other Tokyo papers, with focus on noise in real-world data
+
+- Binary classification from positive-confidence data (Tokyo 2018)
+    - Shows how to learn binary classifier given only positive data along with confidence scores
+
+- Learning to Rank: From Pairwise Approach to Listwise Approach (Microsoft 2007)
+    - Overview of LTR development
+
+------------------------------------------------------------------------------------------------------------------------
+
+Pairwise comparisons:
+- Hopkins et al., 2019
+    - The power of comparisons for actively learning linear classifiers
+    - UCSD 2019
+- Bao et al., 2018
+    - Classification from pairwise similarity and unlabeled data
+    - Tokyo 2018
+- Dan et al., 2020
+    - Learning from noisy similar and dissimilar data
+- Ishida et al.,2018
+    - Binary classification from positive-confidence data
+- Shimada et al., 2019
+    - Classification  from  pairwise  similarities/dissimilarities and unlabeled data via empirical risk minimization
+    - Tokyo 2019 (first)
+- Xu et al., 2017, 2018
+    - Noise-tolerant interactive learning using pairwise comparisons
+        - CMU 2017
+    - Nonparametric regression with comparisons: Escaping the curse of dimensionality with ordinal information
+        - CMU 2019
+
+Learning-to-rank:
+- Cao et al. (2007)
+    - Learning to rank: from pairwise approach to listwise approach
+- Burges(2010)
+    - From ranknet to lambdarank to lambdamart: An overview
+- Lambdamart (Chapelle and Chang, 2011)
+    - Yahoo! learning to rank challenge overview
+
+Other papers (not yet cited):
+- Pairwise Preference Learning and Ranking
+    - http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.6.7067&rep=rep1&type=pdf
+    - Learns ranking function thru binary classification
+        - Given two examples, which is better?
+
+- Active classification with comparison queries
+    - https://arxiv.org/pdf/1704.03564.pdf
+    - Active learning with both label queries and pairwise comparison queries
+    - "it is possible to reveal all the labels of a sample of size n using approximately O(log n) queries"
+    - Seems similar to CMU binary search paper
+
+- Convex Formulation for Learning from Positive and Unlabeled Data
+    - http://proceedings.mlr.press/v37/plessis15.pdf
+    - Learns binary classification from only positive and unlabeled data
+    - Most PU methods: biased since no negative examples
+    - Proposed method cancels bias, and is convex (easier to learn)
+
+- Semi-Supervised Classification Based on Classification from Positive and Unlabeled Data
+    - https://arxiv.org/pdf/1605.06955.pdf
+    - PU setup, shows unlabeled data decreases error w/out typical semisupervised distributional assumptions
+
+- Improving Classification with Pairwise Constraints: A Margin-based Approach
+    - http://www.cs.cornell.edu/~nhnguyen/pairwise_constraints.pdf
+    - Setup: small amount of labeled data + pairwise comparisons
+    - Adds comparisons to margin-approach implemented thru SVM
+    - Shows comparisons improve performance over labels alone
+
+- Uncoupled Regression from Pairwise Comparison Data
+    - http://papers.neurips.cc/paper/8654-uncoupled-regression-from-pairwise-comparison-data.pdf
+    - Uncoupled regression: have features and labels but no correspondence between the two
+    - Pairwise comparisons reduce the number of assumptions necessary/make uncoupled regression more practical
+
+- When is it better to compare than to score?
+    - https://arxiv.org/pdf/1406.6618.pdf
+    - Compares direct scoring (cardinal) vs comparative (ordinal) measurements
+    - Ordinal: lower noise, faster, less information
+
+------------------------------------------------------------------------------------------------------------------------
+Organization:
+
+- Positive confidence/Positive and unlabeled
+    - ishida2018binary: positive confidence
+    - pu2015convex: PU, cancels bias, is convex
+    - sakai2016semisupervised: PU, U decreases error w/out assumptions
+
+- Similar/similar-disimilar and unlabeled
+    - bao2018classification: SU
+    - shimada2019classification: SDU
+    - dan2020learning: noisy SD
+
+- Labels and pairwise comparisons
+    - xu2018nonparametric: regression w/ comparisons, escapes CoD
+    - xu2017noise: reduces classification to binary search, active learning with labeling and comparison oracles
+    - kane2017active: active learning w/ label queries and pairwise comparison queries, log(n) labels queries needed
+    - nguyen2008improving: adds PW to margin in SVM along with labeled
+    - hopkins2019power: weak assumptions + comparison queries -> active learning with exp fewer samples
+
+- Why pairwise
+    - shah2014better: cardinal vs ordinal
+
+- Learning to rank
+    - burges2010ranknet: overview
+    - cao2007learning: pairwise to listwise
+    - chapelle2011yahoo: yahoo LTRC, winner was lambdamart
+
+- How PairBoost differs (?)
+    - Keep in intro instead?
+
+
+
+
+
+
+
+
+
+
+
+
+.
