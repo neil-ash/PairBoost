@@ -127,8 +127,29 @@ Other papers (not yet cited):
     - Compares direct scoring (cardinal) vs comparative (ordinal) measurements
     - Ordinal: lower noise, faster, less information
 
+- Constrained K-means Clustering with Background Knowledge
+    - https://www.cs.cmu.edu/~./dgovinda/pdf/icml-2001.pdf
+    - Variation on K-means clustering with must-link (similar points in the same cluster) and cannot-link (dissimilar
+      points in different clusters)
+
+- Semi-Supervised Classification Method Based on Spectral Clustering
+      - http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.635.1552&rep=rep1&type=pdf
+      - Spectral clustering: roots in graph theory
+      - Spectrum (eigenvalues) of similarity matrix of points
+      - Performs dimensionality reduction then clusters in low dimension
+
+- Information-Theoretic Metric Learning
+      - http://www.cs.utexas.edu/users/pjain/pubs/metriclearning_icml.pdf
+      - Learns distance function
+      - Similar/disimilar pairs used for regularization
+
 ------------------------------------------------------------------------------------------------------------------------
 Organization:
+
+- Mainly unsupervised
+    - wagstaff2001constrained: constrained k-means
+    - chen2012spectral: spectral clustering
+    - davis2007information: metric learning
 
 - Positive confidence/Positive and unlabeled
     - ishida2018binary: positive confidence
@@ -147,12 +168,12 @@ Organization:
     - nguyen2008improving: adds PW to margin in SVM along with labeled
     - hopkins2019power: weak assumptions + comparison queries -> active learning with exp fewer samples
 
-- Why pairwise
+- Why pairwise (DID NOT CITE)
     - shah2014better: cardinal vs ordinal
 
 - Learning to rank
     - burges2010ranknet: overview
-    - cao2007learning: pairwise to listwise
+    - cao2007learning: pairwise to listwise (DID NOT CITE)
     - chapelle2011yahoo: yahoo LTRC, winner was lambdamart
 
 - How PairBoost differs (?)
