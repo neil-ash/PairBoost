@@ -874,16 +874,45 @@ To do (overall):
 - Ask Mohammad about using different datasets in new experiments
     - Run m (labeled) experiment on different datasets
     - Put m (labeled) and n (ratio) plots in paper
-- Ask Mohammad to fix algorithm section (ranker)
 - Bold table entries
-- Cite libsvm, UCI
-- Fix related works
-- Carefully read all NeurIPS guidelines
 - Cleanup code according to NeurIPS github guidelines
 - Write broader impact
 
 Table Columns:
 Dataset | m | svm | tree | SDDU Squared | SDDU Double Hinge
+
+Future ideas/experiments:
+- Run experiments on regression datasets with a threshold
+- (On paper) understand how algorithm works with pairwise comparisons one greater than other but both same label
+
+------------------------------------------------------------------------------------------------------------------------
+8-20
+
+Concerns/Ideas:
+- Main concern: empirical results are bad when using linear SVM pairwise ranker
+    - Requires two levels of linear separability (?)
+        - Pairwise ranker
+        - Pairwise classifier
+- My approach using XGBoost regressor did not make sense
+    - No nontrivial comparisons
+        - Why not just learn a supervised model?
+- Proposed
+- Question: what are we given (ie what is yi in step 1 of algorithm)?
+    - Mohammad's approach: only learn from dissimilar pairs, know one example is more likely to be positive than another
+    - Possible to also include similar pairs?
+        - In Mohammad's approach: these points would be right on the decision boundary
+    - Probably: pair of points, which one is more likely to be positive
+
+Plan:
+- First, get results with SVM pairwise ranker
+
+
+
+
+
+
+
+
 
 
 

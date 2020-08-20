@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.preprocessing import minmax_scale
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
-from sklearn.svm import LinearSVC
+from sklearn.svm import SVC, LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -224,6 +224,36 @@ def generate_rank_W(X_train, y_train, m, rounded, random_state=1):
         return np.round(W * 2) / 2
     else:
         return W
+
+
+def generate_svm_rank_W(X_train, y_train, m, kernel='linear', random_seed=1):
+    """ Generates pairwise comparison matrix W using Mohammad's method: learned linear SVM ranker trained on m pairs"""
+
+    np.random.seed(random_seed)
+
+    pos_idx = np.squeeze(np.argwhere(y_train == 1))
+    neg_idx = np.squeeze(np.argwhere(y_train == -1))
+    pos_idx = pos_idx[np.random.permutation(pos_idx.shape[0])[:m]]
+    neg_idx = neg_idx[np.random.permutation(neg_idx.shape[0])[:m]]
+
+    cut = min(pos_idx.size, neg_idx.size)
+    if cut != m:
+        print("Cut at %d rather than expected %d" % (cut, m))
+
+    rnd_c = np.random.choice([1, -1], [pos_idx.shape[0], 1])[:cut]
+    X_pair = (X_train[pos_idx,:][:cut] - X_train[neg_idx,:][:cut]) * rnd_c
+    y_pair = (y_train[pos_idx][:cut] - y_train[neg_idx][:cut]) * np.squeeze(rnd_c) / 2
+
+    clf = SVC(C=1.0, kernel=kernel)
+    clf.fit(X_pair, y_pair)
+
+    print("Training accuracy of rank SVM: %.2f" % clf.score(X_pair, y_pair))
+
+    rank = clf.decision_function(X_train)
+    sigma = 1
+    W = gen_conf_matrix(rank, sigma)
+
+    return W
 
 
 def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, random_seed=None, verbose=True):
@@ -454,8 +484,8 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sam
     return 1 - acc_train_final, 1 - acc_test_final
 
 
-def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_or_table='table', random_state=1,
-                         verbose=False):
+def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_or_table='table', kernel='rbf',
+                         random_state=1, verbose=False):
     """ Run experiments modifying training data size and number of labels """
 
     if plots_or_table == 'table':
@@ -464,7 +494,7 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
         TRAIN_SIZES = NUM_LABELS + 500
         TEST_SIZE   = 500
         NUM_TRIALS  = len(NUM_LABELS)
-        NUM_REPEATS = 50
+        NUM_REPEATS = 20    # CHANGE BACK TO 50 LATER!!
         # # To compare with Tokyo 2018 table (SU)
         # NUM_LABELS  = np.array([500])
         # TRAIN_SIZES = NUM_LABELS + 500
@@ -520,8 +550,10 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
         y_train = y_train_all[:TRAIN_SIZES[i]]
 
         if rank:
-            # Generate W from ranker
-            W = generate_rank_W(X_train, y_train, NUM_LABELS[i], rounded, random_state=random_state)
+            """ CHANGED TO SVM """
+            # # Generate W from ranker
+            # W = generate_rank_W(X_train, y_train, NUM_LABELS[i], rounded, random_state=random_state)
+            W = generate_svm_rank_W(X_train, y_train, NUM_LABELS[i], kernel=kernel, random_seed=random_state)
         else:
             # Use partially filled in W pairwise comparison matrix
             W = generate_W(y_train)
@@ -534,10 +566,10 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
                                                                    X_test, y_test,
                                                                    W, T=20, sample_prop=1,
                                                                    verbose=verbose)
-            # tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
-            #                                                         X_test, y_test,
-            #                                                         W, T=20, sample_prop=1,
-            #                                                         verbose=verbose)
+            tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
+                                                                    X_test, y_test,
+                                                                    W, T=20, sample_prop=1,
+                                                                    verbose=verbose)
 
             print('-----------------------------------------------')
             print('%d / %d complete' % (NUM_REPEATS * i + j + 1, NUM_REPEATS * NUM_TRIALS))
@@ -613,7 +645,7 @@ def table_results(svm_arr, tree_arr):
     """ Nicely print out results from data_size_experiment vs Tokyo plots """
 
     # (std / sqrt(n)) to calculate standard error, n = 50 trials (NOT 50 or 200 labels)
-    NUM_REPEATS = 50
+    NUM_REPEATS = 20    # CHANGE BACK TO 50 LATER!!
 
     # Want accuracy not error
     svm_arr  = (1 - svm_arr) * 100
