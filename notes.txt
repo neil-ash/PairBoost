@@ -896,24 +896,51 @@ Concerns/Ideas:
 - My approach using XGBoost regressor did not make sense
     - No nontrivial comparisons
         - Why not just learn a supervised model?
-- Proposed
+- Proposed method of ranking with regression also does not make sense
+    - Assumes full W matrix
+    - Unecessary since Mohammad's way works
 - Question: what are we given (ie what is yi in step 1 of algorithm)?
     - Mohammad's approach: only learn from dissimilar pairs, know one example is more likely to be positive than another
     - Possible to also include similar pairs?
         - In Mohammad's approach: these points would be right on the decision boundary
     - Probably: pair of points, which one is more likely to be positive
+- "Linking": if A < B and B < C, then A < C
+    - Could use to create more labels for pairs
+
+To ask/mention:
+- What is yi in step 1 of algorithm?
+    - 0 if xi1 more likely to be positive than xi2
+    - 1 if xi2 more likely to be positive than xi1
+- Working with nonlinear models instead?
+    - Pairwise ranker: svm with rbf/gaussian kernel
+    - Boosting models: decision tree, nonlinear svm, etc.
+    - Not apples to apples comparison with Tokyo paper?
+        - Tokyo model is linear
+- Our proposed method solves a fundamentally different problem vs the Tokyo paper
+    - Ours: given pairwise comparisons, ie example 1 is more likely to be positive than example 2
+    - Theirs: given similar/dissimilar pairs
+        - Theirs is richer in the sense that it is definite (?) (pairs are either similar or dissimilar) whereas we could
+          have cases where example 1 is more likely to be positive than example 2 but both are negative
+            - Note that these comparisons are what makes our approach nontrivial
+        - Apples to oranges comparison of which is richer, they are just different...
 
 Plan:
 - First, get results with SVM pairwise ranker
 
+------------------------------------------------------------------------------------------------------------------------
+8-22
 
+Notes:
+- Phishing plots
+    - nSD (plots): good decrease
+    - nU (unlabeled): bad, all over the place
+    - ratio: very good decrease
+    - labeled: very good descrease
 
-
-
-
-
-
-
+plots - SD - labeled vary, unlabeled fixed
+unlabeled - U - labeled fixed, unlabeled vary
+labeled - m - labeled vary, total m + n fixed
+ratio - n - total m + n vary, ratio m / n fixed
 
 
 

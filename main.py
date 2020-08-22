@@ -247,7 +247,7 @@ def generate_svm_rank_W(X_train, y_train, m, kernel='linear', random_seed=1):
     clf = SVC(C=1.0, kernel=kernel)
     clf.fit(X_pair, y_pair)
 
-    print("Training accuracy of rank SVM: %.2f" % clf.score(X_pair, y_pair))
+    print("Training accuracy of rank SVM: %.2f\n" % clf.score(X_pair, y_pair))
 
     rank = clf.decision_function(X_train)
     sigma = 1
@@ -484,11 +484,11 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sam
     return 1 - acc_train_final, 1 - acc_test_final
 
 
-def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_or_table='table', kernel='rbf',
-                         random_state=1, verbose=False):
+def data_size_experiment(X_train, y_train, X_test, y_test, experiment_type, kernel='linear', random_state=1,
+                         verbose=True):
     """ Run experiments modifying training data size and number of labels """
 
-    if plots_or_table == 'table':
+    if experiment_type == 'table':
         # To compare with Tokyo 2019 table (SDU)
         NUM_LABELS  = np.array([50, 200])
         TRAIN_SIZES = NUM_LABELS + 500
@@ -501,28 +501,28 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
         # TEST_SIZE   = 100
         # NUM_TRIALS  = len(NUM_LABELS)
         # NUM_REPEATS = 20
-    elif plots_or_table == 'plots':
+    elif experiment_type == 'SD':
         # To compare with Tokyo 2018/19 nSD plots
         NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
         TRAIN_SIZES = NUM_LABELS + 500
         TEST_SIZE   = 500
         NUM_TRIALS  = len(NUM_LABELS)
         NUM_REPEATS = 10
-    elif plots_or_table == 'unlabeled':
+    elif experiment_type == 'U':
         # To compare with Tokyo 2018/19 nU plots
         NUM_LABELS  = np.array([50, 50, 50, 50, 50, 50])
         TRAIN_SIZES = NUM_LABELS + np.array([100, 200, 800, 1200, 1600, 2000])
         TEST_SIZE   = 500
         NUM_TRIALS  = len(TRAIN_SIZES)
-        NUM_REPEATS = 50
-    elif plots_or_table == 'labeled':
+        NUM_REPEATS = 10
+    elif experiment_type == 'm':
         NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
         TRAIN_SIZES = np.array([1000, 1000, 1000, 1000, 1000, 1000, 1000])
         TEST_SIZE   = 500
         NUM_TRIALS  = len(TRAIN_SIZES)
         NUM_REPEATS = 10
-    elif plots_or_table == 'ratio':
-        NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800, 1600])
+    elif experiment_type == 'n':
+        NUM_LABELS  = np.array([50, 100, 200, 400, 600, 800])
         TRAIN_SIZES = 2 * NUM_LABELS
         TEST_SIZE   = 500
         NUM_TRIALS  = len(TRAIN_SIZES)
@@ -549,15 +549,7 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
         X_train = X_train_all[:TRAIN_SIZES[i]]
         y_train = y_train_all[:TRAIN_SIZES[i]]
 
-        if rank:
-            """ CHANGED TO SVM """
-            # # Generate W from ranker
-            # W = generate_rank_W(X_train, y_train, NUM_LABELS[i], rounded, random_state=random_state)
-            W = generate_svm_rank_W(X_train, y_train, NUM_LABELS[i], kernel=kernel, random_seed=random_state)
-        else:
-            # Use partially filled in W pairwise comparison matrix
-            W = generate_W(y_train)
-            W = clear_W(W, NUM_LABELS[i])
+        W = generate_svm_rank_W(X_train, y_train, NUM_LABELS[i], kernel=kernel, random_seed=random_state)
 
         for j in range(NUM_REPEATS):
 
@@ -566,16 +558,16 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
                                                                    X_test, y_test,
                                                                    W, T=20, sample_prop=1,
                                                                    verbose=verbose)
-            tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
-                                                                    X_test, y_test,
-                                                                    W, T=20, sample_prop=1,
-                                                                    verbose=verbose)
+            # tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
+            #                                                         X_test, y_test,
+            #                                                         W, T=20, sample_prop=1,
+            #                                                         verbose=verbose)
 
             print('-----------------------------------------------')
             print('%d / %d complete' % (NUM_REPEATS * i + j + 1, NUM_REPEATS * NUM_TRIALS))
             print('-----------------------------------------------\n')
 
-        if plots_or_table == 'ratio':
+        if experiment_type == 'n':
             clf = LinearSVC()
             clf.fit(X_train, y_train)
             y_pred = clf.predict(X_test)
@@ -583,19 +575,22 @@ def data_size_experiment(X_train, y_train, X_test, y_test, rank, rounded, plots_
             print('Linear SVM Accuracy for n = %d: %.3f\n' % (y_train.size, acc))
             ls_base.append(acc)
 
-    if plots_or_table == 'labeled':
+    if experiment_type == 'm':
         clf = LinearSVC()
         clf.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
-        print('\nLinear SVM Accuracy: %.3f' % accuracy_score(y_test, y_pred))
+        final_acc = accuracy_score(y_test, y_pred)
+        print('\nLinear SVM Accuracy: %.3f' % final_acc)
+        ls_base = [final_acc for i in range(NUM_TRIALS)]
+        return svm_arr, tree_arr, 1 - np.array(ls_base)
 
-    if plots_or_table == 'ratio':
+    if experiment_type == 'n':
         return svm_arr, tree_arr, 1 - np.array(ls_base)
 
     return svm_arr, tree_arr
 
 
-def plot_err(arr, dname, mname, save=False, SD_or_U='SD', scale=1, pltstyle='seaborn-whitegrid'):
+def plot_err(arr, dname, mname, experiment_type, ls_base=None, save=False, scale=1, pltstyle='seaborn-whitegrid'):
     """ Plots performance when modifying training data size and number of labels"""
 
     plt.style.use(pltstyle)
@@ -604,10 +599,12 @@ def plot_err(arr, dname, mname, save=False, SD_or_U='SD', scale=1, pltstyle='sea
     # (std / sqrt(n)) to calculate standard error, n = 10 trials
     NUM_REPEATS = 10
 
-    if SD_or_U == 'SD':
+    if experiment_type == 'SD' or experiment_type == 'm':
         x = np.array([50, 100, 200, 400, 600, 800, 1600])
-    elif SD_or_U == 'U':
+    elif experiment_type == 'U':
         x = np.array([100, 200, 800, 1200, 1600, 2000])
+    elif experiment_type == 'n':
+        x = 2 * np.array([50, 100, 200, 400, 600, 800])
     y = np.mean(arr, axis=1)
 
     sderr = np.std(arr, axis=1)
@@ -616,27 +613,44 @@ def plot_err(arr, dname, mname, save=False, SD_or_U='SD', scale=1, pltstyle='sea
     plt.rcParams['figure.figsize'] = [5, 3]
     title = dname + ' Dataset, ' + mname + ' Model'
 
-    plt.plot(x, y[:, 1], c='C1')
-    plt.fill_between(x, y[:, 1] - (sderr[:, 1] * scale), y[:, 1] + (sderr[:, 1] * scale),
-                 facecolors='C1', alpha=0.5)
-    plt.scatter(x, y[:, 1], label='Test', c='C1')
+    if experiment_type == 'SD' or experiment_type == 'U':
+        plt.plot(x, y[:, 1], c='C1')
+        plt.fill_between(x, y[:, 1] - (sderr[:, 1] * scale), y[:, 1] + (sderr[:, 1] * scale),
+                     facecolors='C1', alpha=0.5)
+        plt.scatter(x, y[:, 1], label='Test', c='C1')
 
-    plt.plot(x, y[:, 0], c='C0')
-    plt.fill_between(x, y[:, 0] - (sderr[:, 0] * scale), y[:, 0] + (sderr[:, 0] * scale),
-                 facecolors='C0', alpha=0.5)
-    plt.scatter(x, y[:, 0], label='Train', c='C0')
+        plt.plot(x, y[:, 0], c='C0')
+        plt.fill_between(x, y[:, 0] - (sderr[:, 0] * scale), y[:, 0] + (sderr[:, 0] * scale),
+                     facecolors='C0', alpha=0.5)
+        plt.scatter(x, y[:, 0], label='Train', c='C0')
 
-    plt.legend(frameon=True ,shadow=True,fancybox=True, framealpha=1.0)
+    elif experiment_type == 'm' or experiment_type == 'n':
+        plt.plot(x, y[:, 1], c='C1')
+        plt.fill_between(x, y[:, 1] - (sderr[:, 1] * scale), y[:, 1] + (sderr[:, 1] * scale),
+                     facecolors='C1', alpha=0.5)
+        plt.scatter(x, y[:, 1], label='PairBoost', c='C1')
+
+        if experiment_type == 'm':
+            plt.plot(x, ls_base, c='black', linestyle='--', label='Supervised Basline')
+        elif experiment_type == 'n':
+            plt.plot(x, ls_base, c='black')
+            plt.scatter(x, ls_base, label='Supervised Baseline', c='black')
+
+    plt.legend(frameon=True, shadow=True, fancybox=True, framealpha=1.0)
     # plt.title(title)
-    if SD_or_U == 'SD':
+
+    if experiment_type == 'SD' or experiment_type == 'm':
         # plt.xlabel('m: Number of Pairwise Comparisons')
         plt.xlabel('m')
-    elif SD_or_U == 'U':
-        plt.xlabel('n: Number of unlabeled points')
+    elif experiment_type == 'U':
+        # plt.xlabel('n: Number of unlabeled points')
+        plt.xlabel('nU')
+    elif experiment_type == 'n':
+        plt.xlabel('n')
     plt.ylabel('Classification Error')
 
     if save:
-        plt.savefig('final_plots/' + SD_or_U + '/' + title + '.pdf', bbox_inches='tight')
+        plt.savefig('temp_plots/' + experiment_type + '/' + title + '.pdf', bbox_inches='tight')
 
     return None
 
