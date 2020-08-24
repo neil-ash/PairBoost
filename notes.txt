@@ -937,10 +937,33 @@ Notes:
     - ratio: very good decrease
     - labeled: very good descrease
 
-plots - SD - labeled vary, unlabeled fixed
-unlabeled - U - labeled fixed, unlabeled vary
-labeled - m - labeled vary, total m + n fixed
-ratio - n - total m + n vary, ratio m / n fixed
+Mapping from old -> new terms:
+    plots - SD - labeled vary, unlabeled fixed
+    unlabeled - U - labeled fixed, unlabeled vary
+    labeled - m - labeled vary, total m + n fixed
+    ratio - n - total m + n vary, ratio m / n fixed
+
+At end of session:
+- Have plots for phishing and spambase
+    - All plots look good except for U (unlabeled) experiments
+- Next time, get table results for 50 trials, re-read draft on overleaf, prep for Mohammad
+
+------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

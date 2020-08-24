@@ -227,7 +227,7 @@ def generate_rank_W(X_train, y_train, m, rounded, random_state=1):
 
 
 def generate_svm_rank_W(X_train, y_train, m, kernel='linear', random_seed=1):
-    """ Generates pairwise comparison matrix W using Mohammad's method: learned linear SVM ranker trained on m pairs"""
+    """ Generates pairwise comparison matrix W using Mohammad's method: learned linear SVM ranker trained on m pairs """
 
     np.random.seed(random_seed)
 
@@ -242,7 +242,7 @@ def generate_svm_rank_W(X_train, y_train, m, kernel='linear', random_seed=1):
 
     rnd_c = np.random.choice([1, -1], [pos_idx.shape[0], 1])[:cut]
     X_pair = (X_train[pos_idx,:][:cut] - X_train[neg_idx,:][:cut]) * rnd_c
-    y_pair = (y_train[pos_idx][:cut] - y_train[neg_idx][:cut]) * np.squeeze(rnd_c) / 2
+    y_pair = rnd_c
 
     clf = SVC(C=1.0, kernel=kernel)
     clf.fit(X_pair, y_pair)
@@ -364,7 +364,7 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, ra
     acc_test_final  = acc_test_ls[max_idx]
 
     if verbose:
-        print('t = %d was best iteration\n' % (max_idx + 1))
+        print('t = %d was best iteration with accuracy %.2f\n' % (max_idx + 1, acc_test_final))
 
     # Return minimum error (1 - max accuracy)
     return 1 - acc_train_final, 1 - acc_test_final
@@ -494,7 +494,7 @@ def data_size_experiment(X_train, y_train, X_test, y_test, experiment_type, kern
         TRAIN_SIZES = NUM_LABELS + 500
         TEST_SIZE   = 500
         NUM_TRIALS  = len(NUM_LABELS)
-        NUM_REPEATS = 20    # CHANGE BACK TO 50 LATER!!
+        NUM_REPEATS = 50
         # # To compare with Tokyo 2018 table (SU)
         # NUM_LABELS  = np.array([500])
         # TRAIN_SIZES = NUM_LABELS + 500
