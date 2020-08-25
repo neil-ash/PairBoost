@@ -949,7 +949,25 @@ At end of session:
 - Next time, get table results for 50 trials, re-read draft on overleaf, prep for Mohammad
 
 ------------------------------------------------------------------------------------------------------------------------
+8-24
 
+Thoughts/explanation of algorithm:
+- Idea: given pairwise comparisons (ie Bob is more likely to have cancer than Joe) learn classifier to predict if new
+  paitients have cancer
+- Algorithm explanation:
+    - Input: labeled pairwise comparisons (-1 or 1 if x1 < x2 or x1 > x2,  respectively)
+    - First, learn pairwise ranker on labeled pairwise comparisons
+    - Next, make predictions using pairwise ranker to fill in entries in W (uses given pairwise comparisons -1 or 1 to
+      fill in missing pairwise comparisons as probabilities 0 <-> 1)
+    - At this stage, true labels can be recovered (or approximated) from sign(sum(row_i) - sum(col_i)) and this is now
+      a typical supervised learning problem
+    - However, we take it a step further, and instead create a cost function based on the magnitude of wi, where
+      wi = (sum(row_i) - sum(col_i)), accomplished using sampling based on wi. This includes more information about the
+      importance of each point, using the 'extra' information gathered from the input pairwise comparisons vs typical
+      binary labels
+    - Finally, we perform gradient boosting, with each boosting iteration as a binary classification problem
+
+Other idea: use all pairs to learn SVM (all positive and -all negative)
 
 
 
