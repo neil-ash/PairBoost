@@ -886,6 +886,24 @@ Future ideas/experiments:
 - (On paper) understand how algorithm works with pairwise comparisons one greater than other but both same label
 
 ------------------------------------------------------------------------------------------------------------------------
+Old concerns:
+
+\textcolor{red}{(Neil) Other ideas:}
+\begin{itemize}
+\item \textcolor{red}{(\#1 Ranking vs Regression)} Why perform steps 3 and 4 of the algorithm instead of just training a pairwise regressor to fill in entries in W directly? Could reframe the problem as given some entries in W (Wij is Probability rank i higher than j) rather than given y for pairs. This would be solving the same problem more directly (?).
+\item \textcolor{red}{(\#2 Non-trivial comparisons)} In our experiments, we have a contrived set up -- we take a fully labeled dataset, then take a subset of points as pairs and assign pairwise labels based on the difference in the pair's true labels. This setup ignores a very important consideration. In the real world, we would have pairs (xi, xj) such that xi is more likely to be positive than xj, but
+\textit{both xi and xj are actually negative} (or actually positive). If we ignore this consideration, the problem is trivial, since we can easily recover true labels from the matrix W (ie any row in W with an entry of 1 -> assign true label of 1, any row in W with an entry of 0 -> assign true label of -1).
+    \begin{itemize}
+        \item This problem arises in steps 3 and 4 of the current algorithm. How do you learn the pairwise ranker in step 3? In experiments, we learned a linear SVM classifier trained on the difference in features used to predict the difference in labels. Specifically, for all xi such that yi = 1 and for all xj such that yj = -1, (xi, xj) has label 1 and (xj, xi) has label -1. We never test that this approach actually works when you have non-trivial pairs as described above ((xi, xj) such that xi is more likely to be positive than xj, but both xi and xj have the same true label).
+        \begin{itemize}
+            \item Note that when we make predictions to fill in the W matrix, we expect to create pairs as described above, since we use the distance to the decision boundary as $\boldsymbol{w}^{\top}\bit{x}_i$ in step 4. This could be another potential problem/limitation: the quality of W depends on the performance of the linear SVM. We could get better performance using a nonlinear regressor (see above: \#1 Ranking vs Regression).
+        \end{itemize}
+        \item This problem may not seem important, since it is dealing with creating pairs before even using the boosting algorithm. However, it is important -- in fact it is the whole point of the algorithm. Specifically, the performance of the boosting algorithm depends on how well-formed the W matrix is. If the W matrix is "perfect" (Wij is 1 if yi > yj, 0.5 if yi = yj, and 0 if yi < yj) then the boosting algorithm simply recovers the true labels in the first step and learns as if it is a fully supervised problem.
+    \end{itemize}
+\item \textcolor{red}{(\#3 Experiments using regression datasets)} To test performance with non-trivial pairwise comparisons, we could use a regression dataset with some threshold on the labels to transform the problem into classification. For example, we could have a dataset with features as information about people and labels as people's income. We could then set the threshold at \$100k and treat it as a classification problem. This is useful because then we could sample pairs and get non-trivial comparisons (ie Bob makes more than Joe, but Bob and Joe each make less than \$100k). This gives us more information to work with vs binary classification datasets, and we would not have to rely on a linear SVM extrapolating on points within a pair. We could then compare the performance of PairBoost to supervised classification algorithms on these datasets.
+\end{itemize}
+
+------------------------------------------------------------------------------------------------------------------------
 8-20
 
 Concerns/Ideas:
@@ -907,23 +925,6 @@ Concerns/Ideas:
 - "Linking": if A < B and B < C, then A < C
     - Could use to create more labels for pairs
 
-To ask/mention:
-- What is yi in step 1 of algorithm?
-    - 0 if xi1 more likely to be positive than xi2
-    - 1 if xi2 more likely to be positive than xi1
-- Working with nonlinear models instead?
-    - Pairwise ranker: svm with rbf/gaussian kernel
-    - Boosting models: decision tree, nonlinear svm, etc.
-    - Not apples to apples comparison with Tokyo paper?
-        - Tokyo model is linear
-- Our proposed method solves a fundamentally different problem vs the Tokyo paper
-    - Ours: given pairwise comparisons, ie example 1 is more likely to be positive than example 2
-    - Theirs: given similar/dissimilar pairs
-        - Theirs is richer in the sense that it is definite (?) (pairs are either similar or dissimilar) whereas we could
-          have cases where example 1 is more likely to be positive than example 2 but both are negative
-            - Note that these comparisons are what makes our approach nontrivial
-        - Apples to oranges comparison of which is richer, they are just different...
-
 Plan:
 - First, get results with SVM pairwise ranker
 
@@ -940,8 +941,8 @@ Notes:
 Mapping from old -> new terms:
     plots - SD - labeled vary, unlabeled fixed
     unlabeled - U - labeled fixed, unlabeled vary
-    labeled - m - labeled vary, total m + n fixed
-    ratio - n - total m + n vary, ratio m / n fixed
+    labeled - m - labeled vary, total n fixed
+    ratio - n - total n vary, ratio m / n fixed
 
 At end of session:
 - Have plots for phishing and spambase
@@ -969,17 +970,68 @@ Thoughts/explanation of algorithm:
 
 Other idea: use all pairs to learn SVM (all positive and -all negative)
 
+------------------------------------------------------------------------------------------------------------------------
+8-25
 
+To ask/mention:
+- My initial approach with XGBoost regressor, why it was wrong
 
+- What is yi in step 1 of algorithm?
+    - 0/-1 if xi1 more likely to be positive than xi2
+    - 1/+1 if xi2 more likely to be positive than xi1
 
+- Experiments: don't know which subset of data was used in the Tokyo paper
+    - This is important because sampling different subsets of data is source of lots of variability
+    - Also, cannot use Tokyo implementation available on github because of error/lack of scalability
+    - Just compare best seed? Is this cheating? Too similar to Tokyo paper if we just copy their table?
+        - Should not do since source of variability...
 
+- Our proposed method solves a fundamentally different problem vs the Tokyo paper
+    - Ours: given pairwise comparisons, ie example 1 is more likely to be positive than example 2
+    - Theirs: given similar/dissimilar pairs
+        - Theirs is richer in the sense that it is definite (?) (pairs are either similar or dissimilar) whereas we
+          could have cases where example 1 is more likely to be positive than example 2 but both are negative
+            - Note that these comparisons are what makes our approach nontrivial
+        - Apples to oranges comparison of which is richer, they are just different...
+    - Other papers/baselines to compare against?
+        - Lower baselines: k-means, constrained k-means (?), semi-supervised spectral clustering (?), information
+         theoretical metric learning (?) (like in Tokyo paper)
+        - Upper baselines: fully supervised
+        - Other lower baselines?
+            - My experience: haven't seen any papers really like ours...
 
+- What more is left to do?
+    - Include comparisons with other baselines, fully supervised baseline in table?
+    - Analysis of sample complexity?
+    - Derivation of algorithm?
+    - Deadline in early October
 
+- Question about original Microsoft paper
 
+- Working with nonlinear models instead?
+    - Pairwise ranker: svm with rbf/gaussian kernel
+    - Boosting models: decision tree, nonlinear svm, etc.
+    - Not apples to apples comparison with Tokyo paper?
+        - Tokyo model is linear
 
+Notes from meeting:
+- Tokyo 2019 SDU: may use more information than we use, recovers more information about true labels
+- yi is binary
+- Compare ours to Tokyo SU, try to get working again
 
+Potential baselines papers:
+- https://pdfs.semanticscholar.org/7346/a3b48d960aab83c96e877f253d5a7df4295d.pdf
+- https://icml.cc/imls/conferences/2007/proceedings/papers/192.pdf
 
+Potential baseline implementations:
+- K-means: sklearn
+- Constrained k-means: https://github.com/Behrouz-Babaki/COP-Kmeans
+- Agglomerative clustering/Ward hierarchical clustering/Spectral clustering: sklearn
+  https://scikit-learn.org/stable/modules/clustering.html#spectral-clustering
+- Information theoretical metric learning: https://pydml.readthedocs.io/en/latest/dml.html#module-dml.itml
 
+Most recent work in:
+Desktop/Thesis/PairBoost/ranked_data_experiments/adult_compare_SU_FIXED.ipynb
 
 
 
