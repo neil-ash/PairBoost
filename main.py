@@ -256,6 +256,56 @@ def generate_svm_rank_W(X_train, y_train, m, kernel='linear', random_seed=1):
     return W
 
 
+def generate_preliminary_pairs(X_train, y_train, kernel='linear', random_seed=1):
+    """ Used to generate preliminary pairs from all training data """
+
+    clf = SVC(C=1.0, kernel=kernel)
+    clf.fit(X_train, y_train)
+
+    print("PRELIMINARY")
+    print("Training accuracy of supervised SVM: %.2f\n" % clf.score(X_train, y_train))
+
+    rank = clf.decision_function(X_train)
+
+    return rank
+
+
+def generate_from_preliminary_W(X_train, y_train, rank, m, kernel='linear', random_seed=1):
+    """ Modified version of 'generate_svm_rank_W' that uses preliminary pairs """
+
+    np.random.seed(random_seed)
+
+    pair1 = np.random.choice(X_train.shape[0], size=m)
+    pair2 = np.random.choice(X_train.shape[0], size=m)
+
+    X_train1 = X_train[pair1]
+    X_train2 = X_train[pair2]
+
+    # Print num of each type of pair
+    y_stk = np.hstack((y_train[pair1].reshape(-1, 1), y_train[pair2].reshape(-1, 1)))
+    y_unq, y_cts = np.unique(y_stk, return_counts=True, axis=0)
+    print('GENERATE W')
+    # print('num (-1, -1): %d\nnum (-1,  1): %d\nnum ( 1, -1): %d\nnum ( 1,  1): %d'
+    #       % (y_cts[0], y_cts[1], y_cts[2], y_cts[3]))
+    print(y_unq, y_cts)
+
+    X_diff = X_train1 - X_train2
+
+    # If X1 ranked above X2, then y_diff is positive
+    y_diff = np.sign(np.sign(rank[pair1] - rank[pair2]) + 0.1)
+
+    clf = SVC(C=1.0, kernel=kernel)
+    clf.fit(X_diff, y_diff)
+
+    print("Training accuracy of pairwise rank SVM: %.2f\n" % clf.score(X_diff, y_diff))
+
+    rank = clf.decision_function(X_train)
+    sigma = 1
+    W = gen_conf_matrix(rank, sigma)
+
+    return W
+
+
 def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, random_seed=None, verbose=True):
     """ Generates linear svm lambdaboost classifier """
 
@@ -494,7 +544,7 @@ def data_size_experiment(X_train, y_train, X_test, y_test, experiment_type, kern
         TRAIN_SIZES = NUM_LABELS + 500
         TEST_SIZE   = 500
         NUM_TRIALS  = len(NUM_LABELS)
-        NUM_REPEATS = 50
+        NUM_REPEATS = 20
         # # To compare with Tokyo 2018 table (SU)
         # NUM_LABELS  = np.array([500])
         # TRAIN_SIZES = NUM_LABELS + 500
@@ -541,15 +591,17 @@ def data_size_experiment(X_train, y_train, X_test, y_test, experiment_type, kern
     _, X_test, _, y_test = train_test_split(X_test, y_test, test_size=TEST_SIZE, stratify=y_test,
                                             shuffle=True, random_state=random_state)
 
-    print('Progress:')
-
     for i in range(NUM_TRIALS):
 
         # Each new trial is trained on all the data (and more) from the prev trial
         X_train = X_train_all[:TRAIN_SIZES[i]]
         y_train = y_train_all[:TRAIN_SIZES[i]]
 
-        W = generate_svm_rank_W(X_train, y_train, NUM_LABELS[i], kernel=kernel, random_seed=random_state)
+        # W = generate_svm_rank_W(X_train, y_train, NUM_LABELS[i], kernel=kernel, random_seed=random_state)
+
+        # New functions with preliminary (nontrivial) pairs
+        rank = generate_preliminary_pairs(X_train, y_train, kernel='linear', random_seed=1)
+        W = generate_from_preliminary_W(X_train, y_train, rank, NUM_LABELS[i], kernel='linear', random_seed=1)
 
         for j in range(NUM_REPEATS):
 

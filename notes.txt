@@ -1030,8 +1030,51 @@ Potential baseline implementations:
   https://scikit-learn.org/stable/modules/clustering.html#spectral-clustering
 - Information theoretical metric learning: https://pydml.readthedocs.io/en/latest/dml.html#module-dml.itml
 
-Most recent work in:
-Desktop/Thesis/PairBoost/ranked_data_experiments/adult_compare_SU_FIXED.ipynb
+------------------------------------------------------------------------------------------------------------------------
+8-27
+
+To do:
+- Get SU results
+- Message Mehrdad
+
+Hi Mehrdad, I have been working with Mohammad on the PairBoost project. I'm working on getting updated results compared to the 2018 Tokyo similar-unlabeled classification paper.
+
+I spoke with Mohammad to clarify the problem formulation for PairBoost. The algorithm takes as input unlabeled data and pairwise data. The pairwise data is represented as {(x1i, x2i, yi)}. Here, yi indicates which point's true label is more likely to be positive, correct? Additionally, yi should be a binary value (+1 if x1i more likey to be positive than x2i, -1 if x2i more likey to be positive than x1i) NOT a continuous value, correct?
+
+Currently in the experiment setup, I train a linear SVM on the difference in feature values for dissimilar...........
+
+------------------------------------------------------------------------------------------------------------------------
+8-29
+
+Ideas:
+- PairBoost only recovers the true labels if we have trivial comparisons
+- It is impossible to recover true labels if we have nontrivial comparisons (specifically, we have an ordering
+  x1 < x2 < x3...., but it is impossible to recover the threshold between positive/negative examples)
+    - This is obvious when considering the problem formulation -- all we have is an ordering
+    - Reason why there are no other proposed approaches like ours...
+    - See CMU blog post https://blog.ml.cmu.edu/2019/03/29/building-machine-learning-models-via-comparisons/
+- If we have nontrivial comparisons, there is a potential disconnect between what the boosting optimizes for
+  (consistency with the W matrix) and the goal of classification (predicting true labels)
+    - Looked at examples with nontrivial comparisons, yi = sign(wi) only reveals which points are more likely to be
+      ranked above in general (ie cutoff is 50% kinda)
+
+Plan:
+- Add preliminary step with SVM ranker
+- Get results
+    - vs previous
+    - vs SU
+
+Takeaways (rebalancing the w8a dataset):
+- Rebalancing the training set improves performance, even when the testing set is not rebalanced
+    - Rebalanced: closer to 50/50 positive/negative examples
+    - Improvement from ~60% -> ~75%+
+- Hypothesis: maximized number of different-label comparisons, making it easier for PairBoost to learn threshold
+
+
+
+
+
+
 
 
 
