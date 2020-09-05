@@ -1070,7 +1070,44 @@ Takeaways (rebalancing the w8a dataset):
     - Improvement from ~60% -> ~75%+
 - Hypothesis: maximized number of different-label comparisons, making it easier for PairBoost to learn threshold
 
+************************************************************************************************************************
+-> BIG IDEA:
+--> Given pairwise comparisons, only additional piece of information necessary is the proportion of true positives in
+    the training data (class prior, pi+ in Tokyo papers). This allows you to recover the threshold between positives and
+    negatives. You may not always know this class prior for your training data, but it may be possible to estimate it
+    from the population or using background knowledge about the problem.
+************************************************************************************************************************
 
+------------------------------------------------------------------------------------------------------------------------
+8-30
+
+Question:
+- Why does boosting with linear models (linear SVM) make sense? Wouldn't this be just as good as learning a single
+  linear model?
+    - Because logistic regression model is not linear after applying sigmoid function?
+        - Not relevant in this situation, just adding linear coefficients...
+
+------------------------------------------------------------------------------------------------------------------------
+9-2
+
+Ideas:
+- Simple CWPI algorithm with class prior:
+    1. Learn pairwise ranker
+    2. Make predictions on pairs not given
+    3. Fill in W matrix
+    4. For each point, assign weight = sum(row) - sum(col)
+    5. Sort weights
+    6. Assign the first (class prior) proportion of the points a negative label, assign top (1 - class prior) points to
+       positive label
+    7. Learn supervised classifer on predicted labels
+- Could also incorporate class prior into existing PairBoost algo
+    - Step 9: extract labels, rather than using sign(weights)
+        - Sort weights
+        - Assign the first (class prior) proportion of the points a negative label, assign top (1 - class prior) points
+          to positive label
+        - Could also treat as regression problem and set cutoff on predictions to +1 or -1
+            - Incorporates more information from the W matrix
+            - Potentially worse since not optimizing for classification (?)
 
 
 
