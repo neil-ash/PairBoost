@@ -1109,8 +1109,23 @@ Ideas:
             - Incorporates more information from the W matrix
             - Potentially worse since not optimizing for classification (?)
 
+------------------------------------------------------------------------------------------------------------------------
+9-15
 
+Applications of PairBoost:
+(ie class prior is known, true labels unknown, pairwise comparisons known)
+- Election results
+    - Predict who voted democrat vs republican
+    - Have results from election (ie 55% voted democrat)
+    - Do not know who specifically voted democrat vs republican
+    - Potentially sensitive information, people may not want to disclose in survey
+    - Instead, use pairwise information (ie are you more liberal/conservative than this person?)
+- Income prediction (with threshold)
+    - Similar to election results
 
+Hi Mehrdad, I tested my idea about using class prior information in PairBoost and got much better results. Basically, I consider the case where the class prior p(y = +1) is known and show how we can use this with pariwise information to recover the classification threshold and improve performance. The algorithm still works well if the class prior is close to 0.5 but its value is not known a priori.
+
+I would be happy to fix the experiments and fill in the remaining sections of the overleaf draft. The only part that I don't think I could do on my own is the theoretical analysis of sample complexity. Please let me know if I can add these new ideas to the draft/if you would like to meet to discuss.
 
 
 

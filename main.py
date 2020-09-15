@@ -420,7 +420,7 @@ def svm_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, sample_prop=1, ra
     return 1 - acc_train_final, 1 - acc_test_final
 
 
-def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sample_prop=1, random_seed=None,
+def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=3, sample_prop=1, random_seed=None,
                     verbose=True):
     """ Generates decision tree lambdaboost classifier """
 
@@ -528,12 +528,238 @@ def tree_lambdaboost(X_train, y_train, X_test, y_test, W, T=20, max_depth=5, sam
     acc_test_final  = acc_test_ls[max_idx]
 
     if verbose:
-        print('t = %d was best iteration\n' % (max_idx + 1))
+        print('t = %d was best iteration with accuracy %.2f\n' % (max_idx + 1, acc_test_final))
 
     # Return minimum error (1 - max accuracy)
     return 1 - acc_train_final, 1 - acc_test_final
 
 
+################################################################################
+# With Class Prior Information
+################################################################################
+def class_prior_svm_lambdaboost(X_train, y_train, X_test, y_test, W, prior, T=20, sample_prop=1, random_seed=None, verbose=True):
+    """ Generates linear svm lambdaboost classifier using class prior information """
+
+    if verbose:
+        print('WITH CLASS PRIOR %.2f' % prior)
+        print('LINEAR SVM SUBMODELS')
+        print('Using %d classifiers and sample proportion of %d' % (T, sample_prop))
+        if random_seed:
+            print('Random seed %d', random_seed)
+
+    # Constants
+    m = X_train.shape[0]
+    n = X_train.shape[1]
+    np.random.seed(random_seed)
+
+    # Initialize model parameters
+    f_intercept = 0
+    f_coefficient = np.zeros(n)
+
+    # Initialize counters
+    t = 1
+    alpha = [0.0]
+    acc_train_ls = []
+    acc_test_ls  = []
+
+    # Training
+    while t <= T and alpha[-1] >= 0:
+
+        # Step 6: compute epsilon
+        curr_pred = np.dot(X_train, f_coefficient) + f_intercept
+        # Scale predictions, works well empirically
+        curr_pred = minmax_scale(curr_pred, feature_range=(-1, 1))
+        # Remember that W is passed as a list of arrays!
+        epsilon = cal_uncertainty(curr_pred, [W])
+
+        # Step 7: compute weights
+        weight = cal_weights(epsilon)
+
+        # Step 8: extract labels using class prior
+        weight_idx = np.argsort(weight)
+        X_new = X_train[weight_idx]
+        y_new = np.concatenate((-np.ones(m - int(m * prior)), np.ones(int(m * prior))))
+
+        # Step 9: create training (sample) data by sampling based on weights
+        # Sorting weights: necessary for sampling by prob in np.random.choice
+        weight = np.sort(weight)
+        p_weight = np.abs(weight)
+        p_weight /= np.sum(p_weight)
+        sample = np.random.choice(m, size=m*sample_prop, replace=True, p=p_weight)
+        X_sample = X_new[sample]
+        y_sample = y_new[sample]
+
+
+        # Step 10: learn binary classifier on training (sample) data
+        clf = LinearSVC(max_iter=1000)
+        clf.fit(X_sample, y_sample)
+
+        # Step 11: predict labels using current classifier
+        y_pred = clf.predict(X_train)
+
+        # Step 12: compute weight of current classifier
+        alpha_t = cal_alpha(y_pred, epsilon)
+
+        # Make sure alpha is valid
+        if np.isnan(alpha_t) or np.isinf(alpha_t):
+            print('Alpha invalid, terminated')
+            break
+
+        # Step 13: update final classifier
+        f_coefficient += alpha_t * clf.coef_.ravel()
+        f_intercept += alpha_t * clf.intercept_
+
+        # Update loop
+        alpha.append(alpha_t)
+        t += 1
+
+        # Evaluation
+        y_train_pred = np.dot(X_train, f_coefficient) + f_intercept
+        y_test_pred = np.dot(X_test, f_coefficient) + f_intercept
+        y_train_pred = np.sign(y_train_pred)
+        y_test_pred = np.sign(y_test_pred)
+
+        acc_train_curr = accuracy_score(y_train, y_train_pred)
+        acc_test_curr  = accuracy_score(y_test, y_test_pred)
+        acc_train_ls.append(max(acc_train_curr, 1 - acc_train_curr))
+        acc_test_ls.append(max(acc_test_curr, 1 - acc_test_curr))
+
+        if verbose:
+            if t == 2:
+                print('t\tPrior\t\tTrain\t\tTest')
+            print('%d\t%.2f\t\t%.2f\t\t%.2f' % (t - 1, (np.sum(y_sample == 1) / y_sample.size), acc_train_curr, acc_test_curr))
+            if alpha_t < 0:
+                print('Alpha %.2f, terminated' % alpha_t)
+
+    # To skip initialized 0 in alpha list
+    alpha = alpha[1:]
+
+    # Get final accuracy on best boosting iteration on train set
+    # Do not record best iteration on test set -- would train hyperparameter on test
+    max_idx = np.argmax(acc_train_ls)
+    acc_train_final = acc_train_ls[max_idx]
+    acc_test_final  = acc_test_ls[max_idx]
+
+    if verbose:
+        print('t = %d was best iteration with accuracy %.2f\n' % (max_idx + 1, acc_test_final))
+
+    # Return minimum error (1 - max accuracy)
+    return 1 - acc_train_final, 1 - acc_test_final
+
+
+def class_prior_tree_lambdaboost(X_train, y_train, X_test, y_test, W, prior, T=20, max_depth=3, sample_prop=1,
+                                 random_seed=None, verbose=True):
+    """ Generates decision tree lambdaboost classifier """
+
+    if verbose:
+        print('WITH CLASS PRIOR %.2f' % prior)
+        print('DECISION TREE SUBMODELS')
+        print('Using %d classifiers and sample proportion of %d' % (T, sample_prop))
+        if random_seed:
+            print('Random seed %d', random_seed)
+
+    # Constants
+    m = X_train.shape[0]
+    n = X_train.shape[1]
+    np.random.seed(random_seed)
+
+    # Initialize counters
+    t = 1
+    alpha_t = 0
+    acc_train_ls = []
+    acc_test_ls  = []
+
+    # Instantiate models and weights
+    f = []
+    alpha = []
+
+    # Training
+    while t <= T and alpha_t >= 0:
+
+        # Step 6: compute epsilon
+        if t == 1:
+            curr_pred = np.zeros(y_train.shape)
+        else:
+            curr_pred = sum([alpha[i] * f[i].predict(X_train) for i in range(t - 1)])
+        # Scale predictions, works well empirically for SVM...
+        #curr_pred = minmax_scale(curr_pred, feature_range=(-1, 1))
+        # Remember that W is passed as a list of arrays!
+        epsilon = cal_uncertainty(curr_pred, [W])
+
+        # Step 7: compute weights
+        weight = cal_weights(epsilon)
+
+        # Step 8: extract labels
+        weight_idx = np.argsort(weight)
+        X_new = X_train[weight_idx]
+        y_new = np.concatenate((-np.ones(m - int(m * prior)), np.ones(int(m * prior))))
+
+        # Step 9: create training (sample) data by sampling based on weights
+        # Sorting weights: necessary for sampling by prob in np.random.choice
+        weight = np.sort(weight)
+        p_weight = np.abs(weight)
+        p_weight /= np.sum(p_weight)
+        sample = np.random.choice(m, size=m*sample_prop, replace=True, p=p_weight)
+        X_sample = X_new[sample]
+        y_sample = y_new[sample]
+
+        # Step 10: learn binary classifier on training (sample) data
+        clf = DecisionTreeClassifier(max_depth=max_depth)
+        clf.fit(X_sample, y_sample)
+
+        # Step 11: predict labels using current classifier
+        y_pred = clf.predict(X_train)
+
+        # Step 12: compute weight of current classifier
+        alpha_t = cal_alpha(y_pred, epsilon)
+
+        # Make sure alpha is valid
+        if np.isnan(alpha_t) or np.isinf(alpha_t):
+            print('Alpha invalid, terminated')
+            break
+
+        # Step 13: update final classifier
+        f.append(clf)
+
+        # Update loop
+        alpha.append(alpha_t)
+        t += 1
+
+        # Evaluation
+        y_train_pred = sum([alpha[i] * f[i].predict(X_train) for i in range(t - 1)])
+        y_test_pred = sum([alpha[i] * f[i].predict(X_test) for i in range(t - 1)])
+        y_train_pred = np.sign(y_train_pred)
+        y_test_pred = np.sign(y_test_pred)
+
+        acc_train_curr = accuracy_score(y_train, y_train_pred)
+        acc_test_curr  = accuracy_score(y_test, y_test_pred)
+        acc_train_ls.append(max(acc_train_curr, 1 - acc_train_curr))
+        acc_test_ls.append(max(acc_test_curr, 1 - acc_test_curr))
+
+        if verbose:
+            if t == 2:
+                print('t\tPrior\t\tTrain\t\tTest')
+            print('%d\t%.2f\t\t%.2f\t\t%.2f' % (t - 1, (np.sum(y_sample == 1) / y_sample.size),
+                                                acc_train_curr, acc_test_curr))
+            if alpha_t < 0:
+                print('Alpha %.2f, terminated' % alpha_t)
+
+    # Get final accuracy on best boosting iteration on train set
+    # Do not record best iteration on test set -- would train hyperparameter on test
+    max_idx = np.argmax(acc_train_ls)
+    acc_train_final = acc_train_ls[max_idx]
+    acc_test_final  = acc_test_ls[max_idx]
+
+    if verbose:
+        print('t = %d was best iteration with accuracy %.2f\n' % (max_idx + 1, acc_test_final))
+
+    # Return minimum error (1 - max accuracy)
+    return 1 - acc_train_final, 1 - acc_test_final
+
+
+################################################################################
+# Experiments
+################################################################################
 def data_size_experiment(X_train, y_train, X_test, y_test, experiment_type, kernel='linear', random_state=1,
                          verbose=True):
     """ Run experiments modifying training data size and number of labels """
@@ -605,15 +831,20 @@ def data_size_experiment(X_train, y_train, X_test, y_test, experiment_type, kern
 
         for j in range(NUM_REPEATS):
 
+            """ RESULTS WITH CLASS PRIOR KNOWN """
+            prior = np.sum(y_train == 1) / y_train.size
+
             # Fill in results as (train error, test error)
-            svm_arr[i, j, 0], svm_arr[i, j, 1]   = svm_lambdaboost(X_train, y_train,
-                                                                   X_test, y_test,
-                                                                   W, T=20, sample_prop=1,
-                                                                   verbose=verbose)
-            # tree_arr[i, j, 0], tree_arr[i, j, 1] = tree_lambdaboost(X_train, y_train,
-            #                                                         X_test, y_test,
-            #                                                         W, T=20, sample_prop=1,
-            #                                                         verbose=verbose)
+            svm_arr[i, j, 0], svm_arr[i, j, 1]   = class_prior_svm_lambdaboost(X_train, y_train,
+                                                                               X_test, y_test,
+                                                                               W, prior,
+                                                                               T=20, sample_prop=1,
+                                                                               verbose=verbose)
+            tree_arr[i, j, 0], tree_arr[i, j, 1] = class_prior_tree_lambdaboost(X_train, y_train,
+                                                                                X_test, y_test,
+                                                                                W, prior,
+                                                                                T=20, sample_prop=1,
+                                                                                verbose=verbose)
 
             print('-----------------------------------------------')
             print('%d / %d complete' % (NUM_REPEATS * i + j + 1, NUM_REPEATS * NUM_TRIALS))
