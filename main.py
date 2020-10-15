@@ -995,3 +995,142 @@ def baselines(X_train, y_train, X_test, y_test):
              accuracy_score(y_test, xgb.predict(X_test))))
 
     return None
+
+
+################################################################################
+# Experiments vs SU with a fixed class prior
+################################################################################
+def sampling_by_prior(X, y, size, prior=0.5):
+    """
+    Samples a dataset according to a fixed true class prior
+
+    Need to call separately for train and test
+    """
+
+    # Num pos and neg points
+    ntp = int(size * prior)
+    ntn = size - ntp
+
+    X_new = np.concatenate((shuffle(X[y ==  1])[:ntp],
+                            shuffle(X[y == -1])[:ntn]))
+    y_new = np.concatenate((np.ones(ntp), -np.ones(ntn)))
+
+    X_new, y_new = shuffle(X_new, y_new)
+
+    return X_new, y_new
+
+
+def get_similar_unlabeled(X_train, y_train, ns, nu, prior=0.5, train_size=5000, su_cutoff=2500):
+    """
+    Returns similar and unlabeled pairs for SU classification: xs, xu
+
+    Note) set true prior to 0.7 to be consistent with results in Table 4 of the Tokyo SU
+          paper, train_size and su_cutoff are used to ensure that similar and unlabeled points
+          are from disjoint sets
+    """
+
+    # Only use some of training data
+    train_samples = np.random.permutation(X_train.shape[0])[:train_size]
+    X_train = X_train[train_samples]
+    y_train = y_train[train_samples]
+
+    # Sample similar and unlabeled points from disjoint sets
+    X_s_set = X_train[:su_cutoff]
+    y_s_set = y_train[:su_cutoff]
+    X_u_set = X_train[su_cutoff:]
+    y_u_set = y_train[su_cutoff:]
+
+    # Calculate number of positive/negative similar pairs using prior
+    nsp = np.random.binomial(ns, prior**2 / (prior**2 + (1-prior)**2))
+    nsn = ns - nsp
+
+    # Similar: get positive pairs and negative pairs
+    X_s_pos = X_s_set[np.where(y_s_set ==  1)]
+    X_s_neg = X_s_set[np.where(y_s_set == -1)]
+
+    # Get similar pairs
+    xs = np.concatenate((np.hstack((X_s_pos[np.random.choice(X_s_pos.shape[0], nsp)],
+                                    X_s_pos[np.random.choice(X_s_pos.shape[0], nsp)])),
+                         np.hstack((X_s_neg[np.random.choice(X_s_neg.shape[0], nsn)],
+                                    X_s_neg[np.random.choice(X_s_neg.shape[0], nsn)]))))
+
+    # Calculate number of positve/negative unlabeled points using prior
+    nup = np.random.binomial(nu, prior)
+    nun = nu - nup
+
+    # Unlabeled: get positive pairs and negative pairs
+    X_u_pos = X_u_set[np.where(y_u_set ==  1)]
+    X_u_neg = X_u_set[np.where(y_u_set == -1)]
+
+    # Get unlabeled points
+    xu = np.concatenate((X_u_pos[np.random.choice(X_u_pos.shape[0], nup)],
+                         X_u_neg[np.random.choice(X_u_neg.shape[0], nun)]))
+
+    return xs, xu
+
+
+def SU_baseline(SU, est_prior, xs, xu, X_test, y_test):
+    """
+    Provides SU baseline performance
+
+    SU is either SU_DH or SU_SL
+    """
+
+    X_train, y_train = convert_su_data_sklearn_compatible(xs, xu)
+
+    # Cross-validation
+    lam_list = [1e-01, 1e-04, 1e-07]
+    score_cv_list = []
+    for lam in lam_list:
+        clf = SU(prior=est_prior, lam=lam)
+        score_cv = cross_val_score(clf, X_train, y_train, cv=5).mean()
+        score_cv_list.append(score_cv)
+
+    # Training with the best hyperparameter
+    lam_best = lam_list[np.argmax(score_cv_list)]
+    clf = SU(prior=est_prior, lam=lam_best)
+    clf.fit(X_train, y_train)
+
+    # Get performance
+    y_pred = clf.predict(X_test)
+    acc = accuracy_score(y_test, y_pred)
+    acc = max(acc, 1 - acc)
+    print('SU accuracy: %.2f\n' % acc)
+
+    return 1 - acc
+
+
+def prior_comparison_experiment(X_train, y_train, X_test, y_test, prior=0.5):
+    """
+    Compares SU performance to PairBoost performance at a fixed class prior
+    """
+
+    ### SU classification baseline ###
+    print('----- SU -----')
+    xs, xu = get_similar_unlabeled(X_train, y_train, ns=500, nu=500, prior=prior)
+    est_prior = class_prior_estimation(xs, xu)
+    print('Estimated prior: %.2f\n' % est_prior)
+    print('SL')
+    SL = SU_baseline(SU_SL, est_prior, xs, xu, X_test, y_test)
+    print('DH')
+    DH = SU_baseline(SU_DH, est_prior, xs, xu, X_test, y_test)
+
+    ### PairBoost ###
+    print('----- PairBoost -----')
+    X_train, y_train = sampling_by_prior(X_train, y_train, size=1000, prior=prior)
+    X_test, y_test = sampling_by_prior(X_test, y_test, size=500, prior=prior)
+
+    rank = generate_preliminary_pairs(X_train, y_train, kernel='linear', random_seed=1)
+    W = generate_from_preliminary_W(X_train, y_train, rank, m=500, kernel='linear', random_seed=1)
+
+    pb_ls = []
+    for i in range(10):
+        pb_ls.append(svm_lambdaboost(X_train, y_train, X_test, y_test, W)[1])
+    PB = np.mean(pb_ls)
+
+    return SL, DH, PB
+
+
+def prior_results(SL, DH, PB):
+    """ Concisely prints results of prior_comparison_experiment """
+    print('SL: %.2f\nDH: %.2f\nPB: %.2f' % (1 - SL, 1 - DH, 1 - PB))
