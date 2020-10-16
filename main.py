@@ -10,6 +10,9 @@ from xgboost import XGBClassifier, XGBRegressor
 from sklearn.metrics import accuracy_score
 from matplotlib import pyplot as plt
 
+from SU_Classification.su_learning import *
+from SU_Classification import misc
+
 
 ################################################################################
 # Mohammad's Code
@@ -294,7 +297,7 @@ def generate_from_preliminary_W(X_train, y_train, rank, m, kernel='linear', rand
     # If X1 ranked above X2, then y_diff is positive
     y_diff = np.sign(np.sign(rank[pair1] - rank[pair2]) + 0.1)
 
-    clf = SVC(C=1.0, kernel=kernel)
+    clf = SVC(C=1.0, kernel=kernel, max_iter=1000)
     clf.fit(X_diff, y_diff)
 
     print("Training accuracy of pairwise rank SVM: %.2f\n" % clf.score(X_diff, y_diff))
@@ -1100,16 +1103,21 @@ def SU_baseline(SU, est_prior, xs, xu, X_test, y_test):
     return 1 - acc
 
 
-def prior_comparison_experiment(X_train, y_train, X_test, y_test, prior=0.5):
+def prior_comparison_experiment(X_train, y_train, X_test, y_test, prior=0.5, train_size=5000, su_cutoff=2500):
     """
     Compares SU performance to PairBoost performance at a fixed class prior
     """
 
+    # Same test set for both SU and PairBoost
+    X_test, y_test = sampling_by_prior(X_test, y_test, size=500, prior=prior)
+
     ### SU classification baseline ###
     print('----- SU -----')
-    xs, xu = get_similar_unlabeled(X_train, y_train, ns=500, nu=500, prior=prior)
+    xs, xu = get_similar_unlabeled(X_train, y_train, ns=500, nu=500, prior=prior,
+                                   train_size=train_size, su_cutoff=su_cutoff)
     est_prior = class_prior_estimation(xs, xu)
     print('Estimated prior: %.2f\n' % est_prior)
+
     print('SL')
     SL = SU_baseline(SU_SL, est_prior, xs, xu, X_test, y_test)
     print('DH')
@@ -1118,7 +1126,6 @@ def prior_comparison_experiment(X_train, y_train, X_test, y_test, prior=0.5):
     ### PairBoost ###
     print('----- PairBoost -----')
     X_train, y_train = sampling_by_prior(X_train, y_train, size=1000, prior=prior)
-    X_test, y_test = sampling_by_prior(X_test, y_test, size=500, prior=prior)
 
     rank = generate_preliminary_pairs(X_train, y_train, kernel='linear', random_seed=1)
     W = generate_from_preliminary_W(X_train, y_train, rank, m=500, kernel='linear', random_seed=1)
@@ -1133,4 +1140,4 @@ def prior_comparison_experiment(X_train, y_train, X_test, y_test, prior=0.5):
 
 def prior_results(SL, DH, PB):
     """ Concisely prints results of prior_comparison_experiment """
-    print('SL: %.2f\nDH: %.2f\nPB: %.2f' % (1 - SL, 1 - DH, 1 - PB))
+    print('SL: %.3f\nDH: %.3f\nPB: %.3f' % (1 - SL, 1 - DH, 1 - PB))

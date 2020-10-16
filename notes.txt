@@ -1123,9 +1123,77 @@ Applications of PairBoost:
 - Income prediction (with threshold)
     - Similar to election results
 
-Hi Mehrdad, I tested my idea about using class prior information in PairBoost and got much better results. Basically, I consider the case where the class prior p(y = +1) is known and show how we can use this with pariwise information to recover the classification threshold and improve performance. The algorithm still works well if the class prior is close to 0.5 but its value is not known a priori.
+------------------------------------------------------------------------------------------------------------------------
+10-5
 
-I would be happy to fix the experiments and fill in the remaining sections of the overleaf draft. The only part that I don't think I could do on my own is the theoretical analysis of sample complexity. Please let me know if I can add these new ideas to the draft/if you would like to meet to discuss.
+Message to Mehrdad
+
+Everything:
+- Really enjoyed working on this and other projects
+- In past, could just go to your office if you were busy
+- Could make even more progress with your feedback and help
+- Would be happy to put in the work now
+- Understand PairBoost is not your top priority
+- Frustrated with lack of communication
+- Apologize for not working on it this summer, miscommunication
+- Want letter of recommendation
+- Goal: to get a publication (?)
+- Boeing award (?)
+
+Specifically:
+- Say you want to keep working on this project, eventually publish (not give up)
+- Have made progress on my own, could make even more progress with your feedback and help
+- Would like letter of rec from you, project could be example
+- Understand project is not your top priority, in past could go to your office, still want to result in something
+
+------------------------------------------------------------------------------------------------------------------------
+10-8
+
+To discuss at 10-9 meeting:
+- What is yi (input, label for pair)?
+    - Binary label, 1 if xi1 more likely to be positive than xi2
+        - My interpretation
+    - Continuous value, sign reveals which point more likely to be positive, magnitude reveals by how much
+        - Harder to gather this type of data (?)
+- Current experimental setup
+    - Does gradient boosting make sense for linear models?
+    - Areas to improve performance: use nonlinear rankers, submodels
+- My idea: using class prior information
+- How to do theoretical parts?
+- LETTER OF REC
+
+------------------------------------------------------------------------------------------------------------------------
+10-14
+
+To do: balanced sampling performance vs SU
+
+Plan:
+- See if SU works for cp = 0.5
+- Else:
+    - Review paper
+    - Use other baselines (kmeans, constrained kmeans, spectral clustering, ITML)
+    - Message Mohammad and Mehrdad
+- Make make new function to do balanced sampling
+- Make new function to do baselines
+
+Notes:
+- SU paper:
+    - 5.1: error of class prior estimation, not error of classification algorithm
+    - 5.2: explicitly says performance is better when true class prior is farther from 1/2 because of |2cp - 1| in
+      denominator
+    - Figure 5, cp = 0.4: similar to what Mehrdad is asking for (performace of SU baseline when cp = 0.5)
+- SU code
+    - Appears that predictions are all +1 or all -1 if cp > 0.5, cp < 0.5 respectively
+        - Not completely true: 0.49 is mostly -1, some +1
+    - Squared loss (SL) seems to work
+    - Double hinge (DH) does not match paper results
+        - Still sometimes returns all -1 or all +1 (phishing)
+        - Sometimes does not^, but still doesn't match performance in paper
+- Correct sampling function in compare_with_SU/phishing_compare_SU
+
+
+
+
 
 
 
